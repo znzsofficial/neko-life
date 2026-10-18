@@ -26,4 +26,5 @@ class ConfigurationCopyTests(unittest.TestCase):
                 self.assertNotEqual(extra["label"], name)
                 if name != "config_version":
                     self.assertTrue(field.description, (section, name))
+                    self.assertEqual(extra["hint"], field.description)
         self.assertTrue(type(cfg.plugin).model_fields["config_version"].json_schema_extra["hidden"])

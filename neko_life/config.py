@@ -1,6 +1,14 @@
 """Operator-facing labels; stable keys/defaults preserve existing installations."""
 
-from maibot_sdk import Field, PluginConfigBase
+from maibot_sdk import Field as sdk_field, PluginConfigBase
+
+
+def Field(*args, **kwargs):
+    """The host shows `hint` inline; SDK descriptions alone are not visible."""
+    extra = kwargs.get("json_schema_extra", {})
+    if extra.get("label") and kwargs.get("description"):
+        kwargs["json_schema_extra"] = {**extra, "hint": kwargs["description"]}
+    return sdk_field(*args, **kwargs)
 
 
 def ui(label, **extra):
