@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "id": "neko.life",
   "name": "Neko Life",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "自主探索公开资料、记录见闻与角色日程，可选主动分享和生活配图；首次安装默认关闭。",
   "author": {"name": "NekoLaska", "url": "https://github.com/znzsofficial"},
   "urls": {"repository": "https://github.com/znzsofficial/neko-life", "homepage": "https://github.com/znzsofficial/neko-life", "issues": "https://github.com/znzsofficial/neko-life/issues"},

@@ -156,6 +156,24 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["notes"], [])
 
+    async def test_recent_content_includes_note_summary_and_source(self):
+        self.bot.config.plugin.enabled = True
+        self.bot.config.context.enabled = True
+        self.bot.config.context.sessions = ["chat"]
+        await self.bot.store.call(
+            "save_note",
+            self.bot.persona,
+            "公开主题",
+            "公开摘要",
+            "值得继续关注",
+            [{"url": "https://example.com/source", "source_kind": "body"}],
+            [],
+        )
+        result = await self.bot.recent(session_id="chat")
+        self.assertIn("公开主题", result["content"])
+        self.assertIn("公开摘要", result["content"])
+        self.assertIn("https://example.com/source", result["content"])
+
     async def test_disabled_plan_command_cannot_generate_models(self):
         self.bot.config.admin_users = ["123"]
         self.bot.config.models.enabled = True
@@ -172,7 +190,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.bot.config.sharing.enabled = True
         self.bot.config.sharing.sessions = ["chat"]
         path = Path(self.temp.name) / "sharing-keys.json"
-        path.write_text(json.dumps({"attention-seeker-mai": KEY}), encoding="utf-8")
+        path.write_text(json.dumps({"neko.proactive": KEY}), encoding="utf-8")
         path.chmod(0o600)
         await self.bot.store.call(
             "save_note",
@@ -193,7 +211,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             "session_id": "chat",
             "receipt_id": receipt,
             "status": "submitted",
-            "host_task": "proactive:attention-seeker-mai:1700000000000",
+            "host_task": "proactive:neko.proactive:1700000000000",
         }
         self.assertTrue((await self.bot.sharing_api(packet=signed("receipt", body)))["success"])
         body["status"] = "sent"

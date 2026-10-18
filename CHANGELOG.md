@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 — Show recent notes in tool output
+
+- `neko_life_recent` 的可见 `content` 现在包含近期笔记摘要、观点和最多两个来源链接；结构化 `notes` 返回保持不变。
+- 修复 MaiBot 工具执行结果只显示固定安全提示、让人误以为没有笔记的问题。
+
 ## 0.4.1 — Plain-language settings
 
 - 按用途显示中文分组、名称、单位、示例与前置条件，隐藏内部配置版本；键名、默认值和现有设置不变。
