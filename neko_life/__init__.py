@@ -1,0 +1,1 @@
+"""Neko Life domain services."""

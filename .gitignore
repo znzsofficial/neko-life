@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+config.toml
+data/
+runtime/
+dist/
+*.db*
+*keys*.json
+*client*.json
+*.log
+.env*
+*.sqlite*
+*outbox*.json
