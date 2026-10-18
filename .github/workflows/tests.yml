@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: znzsofficial/neko-draw
-          ref: baa26c3103b0274e18bbadfb8979ace78410ce8b
+          ref: 9864a1420d9fd1f74fc9c2b1f819cae2a1e87501
           path: workspace/neko-draw
       - uses: actions/checkout@v7.0.1
         with:
