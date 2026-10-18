@@ -129,7 +129,7 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
         from neko_life.models import ModelService
 
         web = package("ecosystem_web", ROOT / "neko-web")
-        proactive = package("ecosystem_proactive", ROOT / "neko.proactive")
+            proactive = package("ecosystem_proactive", ROOT / "neko-proactive-mai")
         async with AsyncExitStack() as cleanup:
             directory = cleanup.enter_context(tempfile.TemporaryDirectory())
             root = Path(directory)
