@@ -1,16 +1,19 @@
 # Provenance
 
-The design was informed by octmicy/Mai_life at
-3835b8f21efbcdb5bb3f6a4d89c568a51e60c6f7 (MIT), especially its separation of
-rule-based state, schedules and planner-finalized opportunities. This project
-does not copy its plugin implementation, database or runtime configuration.
+Neko Life is an independent repository, not a GitHub fork. Repository ownership
+does not imply that every underlying idea originated here.
 
-It integrates with the independently maintained Neko plugins. Bridge signatures
-use a versioned canonical packet compatible with neko-web's implementation.
-No account cookie, provider key, private chat log or capability key belongs in
-this repository or its release archives.
+Its design and rule-based scheduling/state approach were informed by and adapted
+from [octmicy/Mai_life](https://github.com/octmicy/Mai_life) at
+`3835b8f21efbcdb5bb3f6a4d89c568a51e60c6f7`, licensed MIT, copyright
+2026 时栖. The upstream copyright notice is retained in LICENSE. This is a
+separate implementation with different scope, state schema and integration
+boundaries; no upstream runtime database or configuration is distributed.
 
-The host requires an HTTP(S) repository field even for unpublished local
-plugins. That field currently points to the maintainer profile for manifest
-compatibility, not a public Neko Life repository. Sources remain local until
-the user authorizes publishing.
+Neko Web, Neko Draw, Neko TTS and attention-seeker-mai remain separate projects
+with their own licenses. Cross-plugin integration uses versioned APIs; the
+release does not bundle their sources. Optional integration tests check out
+fixed public revisions without copying private plugin runtime data.
+
+No provider key, capability key, cookie, private chat, live SQLite database or
+operator screenshot belongs in this repository or its release archives.

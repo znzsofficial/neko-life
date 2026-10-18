@@ -1,0 +1,47 @@
+name: tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.12', '3.14']
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: workspace/neko-life
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: workspace/neko-life
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: znzsofficial/neko-web
+          ref: 62a985dea5e798487833d6c435b89b01fec77a43
+          path: workspace/neko-web
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: znzsofficial/attention-seeker-mai
+          ref: 969a8f8be0fd51e8534e2514371ead92248b20f2
+          path: workspace/attention-seeker-mai
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: znzsofficial/neko-draw
+          ref: 0d26502783f81dac53793102c29b55d4b1acb43b
+          path: workspace/neko-draw
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: znzsofficial/neko-tts
+          ref: 3f15e6813f6788113bfad94adcc4a8b0f13ac822
+          path: workspace/neko-tts
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e ".[test]"
+      - run: python -m unittest discover -s tests -t . -q
+      - run: python -m ruff check .
+      - run: python -m ruff format --check .
+      - run: python scripts/build_release.py

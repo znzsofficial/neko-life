@@ -352,6 +352,10 @@ class Store:
     def _cleanup(self):
         now = self.clock()
         with self.conn:
+            self.conn.execute(
+                "UPDATE receipts SET status='unknown' WHERE status IN ('leased','submitted') AND expires<?",
+                (now,),
+            )
             rules = [
                 ("nonces", "created<?", (now - 300,)),
                 ("questions", "expires<?", (now,)),
@@ -423,6 +427,15 @@ class Store:
             "sources": json.loads(row["sources"])[:2],
             "expires_at": now + 180,
         }
+
+    def _share_audit(self, persona):
+        return [
+            dict(row)
+            for row in self.conn.execute(
+                "SELECT r.status,r.created,r.expires,n.topic FROM receipts r LEFT JOIN candidates c ON r.candidate=c.id LEFT JOIN notes n ON c.note_id=n.id WHERE r.persona=? ORDER BY r.created DESC LIMIT 10",
+                (persona,),
+            )
+        ]
 
     def _receipt(self, persona, session, receipt, status, host_task=""):
         row = self.conn.execute(

@@ -4,10 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neko-life-maibot"
-version = "0.2.0"
+version = "0.3.0"
 description = "Bounded public exploration and fictional life context for MaiBot"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
-dependencies = ["maibot-plugin-sdk>=2.12,<3"]
+dependencies = ["maibot-plugin-sdk>=2.12,<3", "tzdata>=2025.2"]
+
+[project.optional-dependencies]
+test = ["httpx>=0.28,<1", "aiohttp>=3.12", "Pillow>=12.0", "ruff==0.15.11"]
+
+[project.urls]
+Repository = "https://github.com/znzsofficial/neko-life"
+Issues = "https://github.com/znzsofficial/neko-life/issues"
 
 [tool.setuptools.packages.find]
 include = ["neko_life*"]

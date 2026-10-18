@@ -37,6 +37,8 @@ class ReleaseTests(unittest.TestCase):
                 names = archive.namelist()
                 self.assertIn("neko-life/webui.json", names)
                 self.assertIn("neko-life/NOTICE.md", names)
+                self.assertIn("neko-life/scripts/configure_bridge.py", names)
+                self.assertIn("neko-life/SECURITY.md", names)
                 self.assertFalse(
                     any(
                         "client.json" in name
@@ -46,3 +48,15 @@ class ReleaseTests(unittest.TestCase):
                         for name in names
                     )
                 )
+
+    def test_archive_rebuild_is_byte_reproducible(self):
+        spec = importlib.util.spec_from_file_location(
+            "life_reproducible_release", ROOT / "scripts/build_release.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            first, digest = module.build(a)
+            second, other = module.build(b)
+            self.assertEqual(digest, other)
+            self.assertEqual(first.read_bytes(), second.read_bytes())

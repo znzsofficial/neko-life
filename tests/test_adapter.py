@@ -123,3 +123,78 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("query_memory", text)
         self.assertIn("不授权自主配图", text)
         self.bot.ctx.llm.generate.assert_not_awaited()
+
+    async def test_long_related_note_cannot_truncate_drawing_memory_and_no_auto_spend(self):
+        import time
+
+        self.bot.config.plugin.enabled = True
+        self.bot.config.context.enabled = True
+        self.bot.config.context.sessions = ["chat"]
+        self.bot.config.context.drawing_context = True
+        self.bot.snapshot = {"current": {"summary": "阅读"}, "snapshot_at": time.time()}
+        self.bot.notes = [
+            {
+                "topic": "画张",
+                "summary": "很长资料" * 300,
+                "sources": [{"url": "https://example.com/" + "a" * 1000, "source_kind": "body"}],
+            }
+        ]
+        items = [{"item_type": "UserMessageItem", "parts": [{"type": "text", "text": "画张自画像"}]}]
+        result = await self.bot.replyer_context(session_id="chat", items=items)
+        text = result["modified_kwargs"]["items"][-1]["parts"][0]["text"]
+        self.assertLessEqual(len(text), 300)
+        self.assertIn("query_memory", text)
+        self.assertIn("不授权自主配图", text)
+        self.bot.ctx.llm.generate.assert_not_awaited()
+
+    async def test_recent_reads_current_store_not_expired_in_memory_notes(self):
+        self.bot.config.plugin.enabled = True
+        self.bot.config.context.enabled = True
+        self.bot.config.context.sessions = ["chat"]
+        self.bot.notes = [{"topic": "过期旧快照"}]
+        result = await self.bot.recent(session_id="chat")
+        self.assertTrue(result["success"])
+        self.assertEqual(result["notes"], [])
+
+    async def test_disabled_plan_command_cannot_generate_models(self):
+        self.bot.config.admin_users = ["123"]
+        self.bot.config.models.enabled = True
+        result = await self.bot.plan_command(user_id="123", matched_groups={"action": "replan"})
+        self.assertFalse(result[0])
+        self.bot.ctx.llm.generate.assert_not_awaited()
+
+    async def test_paused_sharing_blocks_new_claims_but_accepts_inflight_receipts(self):
+        import json
+        from pathlib import Path
+        from tests.test_sharing import signed, KEY
+
+        self.bot.config.plugin.enabled = True
+        self.bot.config.sharing.enabled = True
+        self.bot.config.sharing.sessions = ["chat"]
+        path = Path(self.temp.name) / "sharing-keys.json"
+        path.write_text(json.dumps({"attention-seeker-mai": KEY}), encoding="utf-8")
+        path.chmod(0o600)
+        await self.bot.store.call(
+            "save_note",
+            self.bot.persona,
+            "公开资料",
+            "公开摘要",
+            "",
+            [{"url": "https://example.com", "source_kind": "body"}],
+            [],
+        )
+        claimed = await self.bot.sharing_api(packet=signed("claim", {"session_id": "chat"}))
+        receipt = claimed["candidate"]["receipt_id"]
+        await self.bot.store.call("set", self.bot.persona, "paused", True)
+        self.assertEqual(
+            (await self.bot.sharing_api(packet=signed("claim", {"session_id": "chat"})))["status"], "paused"
+        )
+        body = {
+            "session_id": "chat",
+            "receipt_id": receipt,
+            "status": "submitted",
+            "host_task": "proactive:attention-seeker-mai:1700000000000",
+        }
+        self.assertTrue((await self.bot.sharing_api(packet=signed("receipt", body)))["success"])
+        body["status"] = "sent"
+        self.assertEqual((await self.bot.sharing_api(packet=signed("receipt", body)))["status"], "sent")

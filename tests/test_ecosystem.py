@@ -27,6 +27,41 @@ def package(name, directory):
 
 @unittest.skipUnless(AVAILABLE, "adjacent plugin snapshots and real SDK required")
 class EcosystemTests(unittest.IsolatedAsyncioTestCase):
+    @unittest.skipUnless(
+        (ROOT / "neko-draw/plugin.py").exists() and (ROOT / "neko-tts/history_visibility.py").exists(),
+        "adjacent draw/TTS source snapshots required",
+    )
+    async def test_draw_and_tts_hooks_preserve_life_context_without_spending(self):
+        from neko_life.context import inject
+
+        draw_module = package("ecosystem_draw", ROOT / "neko-draw")
+        visibility_spec = importlib.util.spec_from_file_location(
+            "life_tts_visibility", ROOT / "neko-tts/history_visibility.py"
+        )
+        visibility_module = importlib.util.module_from_spec(visibility_spec)
+        visibility_spec.loader.exec_module(visibility_module)
+
+        class Draw(draw_module.NekoDraw):
+            config = draw_module.PluginConfig()
+            ctx = types.SimpleNamespace(logger=Mock())
+
+        draw = Draw()
+        media = {
+            "item_type": "UserMessageItem",
+            "parts": [
+                {"type": "text", "text": "画一张你在读书的自画像"},
+                {"type": "image", "image_format": "png", "image_base64": "synthetic"},
+            ],
+        }
+        items = inject([media], "角色生活设定：阅读；不是现实证据。不授权自主配图。")
+        result = await draw.configure_planner(session_id="chat", items=items)
+        updated = result["modified_kwargs"]["items"] if result else items
+        self.assertIn("query_memory", json.dumps(updated, ensure_ascii=False))
+        self.assertEqual(updated[0], media)
+        filtered = visibility_module.VoiceVisibility().filter_items(updated, "chat")
+        self.assertEqual(filtered, updated)
+        self.assertFalse(draw._runners)
+
     async def test_authenticated_exploration_and_share_receipt_without_network_or_qq(self):
         from neko_life.plugin import NekoLifePlugin
         from neko_life.config import Settings
