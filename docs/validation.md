@@ -50,6 +50,25 @@ unimplemented promise to infer delivery from ordinary chat content.
   activity bubble can transiently cover its bottom edge; host UI is not replaced.
   Temporary screenshots and private login state are not public release assets.
 
+## Authorized real drawing smoke (0.4)
+
+After the operator explicitly authorized real generation, a separate private QA
+process loaded the deployed Life0.4/Draw1.3 modules, actual configured provider
+and the current live scene. It exercised the parameterless Life tool, both
+switch/session gates, dedicated HMAC packet, Draw's durable admission and the
+unchanged real generation/validation path. Only the host send adapter was
+replaced with a private file capture: **no extra QQ message was sent**.
+The OpenAI-compatible provider returned a decoded1312×1199 image (2,271,817bytes),
+visually checked as an unoccupied environment. A repeated tool call was
+deduplicated before reaching Draw/provider. This verifies generation, not an
+autonomously chosen Planner decision or QQ/TTS client rendering.
+
+Live Runner status independently confirms the feature enabled, both tools
+registered, private keys paired and distinct, the original configuration and
+keys preserved, the main host PID unchanged and Life database integrity ok.
+QA data/keys/image remain outside sources and releases; the isolated smoke DB
+does not mark the actual live scene as already used.
+
 ## Security and reproducibility
 
 The working tree, all reachable Git objects and ZIP were checked against the
