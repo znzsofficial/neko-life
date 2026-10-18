@@ -86,6 +86,9 @@ checksums and hosting-service digest before announcing the release.
 Back up source, configuration, capability keys and a consistent SQLite snapshot
 before upgrading. Disable Life/its sharing client before rolling back matched
 versions, retain unknown-job/outbox evidence and do not replay uncertain work.
+Life pause rejects new drawing requests; already-admitted Draw tasks remain
+owned by its background engine. Pause cannot retract a provider request or
+message that already happened.
 Do not let an older plugin open an unknown database schema. A rollback is not
 deliberately induced against active chat merely to manufacture test evidence.
 
