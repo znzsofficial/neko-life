@@ -102,7 +102,7 @@ class WebBridge:
                         if not isinstance(data, dict) or data.get("success") is not True:
                             raise BridgeError("invalid_result")
                         return data
-                    if result.get("status") in {"unknown", "cancelled", "failed"}:
+                    if result.get("status") in {"unknown", "cancelled", "failed", "expired"}:
                         raise BridgeError(result.get("status"))
                     await asyncio.sleep(wait)
                     result = await self.call("get", {"job_id": job_id})

@@ -21,13 +21,14 @@ def fingerprint(text):
 
 
 class Store:
-    def __init__(self, directory, clock=time.time, limits=None):
+    def __init__(self, directory, clock=time.time, limits=None, interval_seconds=7200):
         self.path = Path(directory) / "life.db"
         self.clock = clock
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="neko-life-db")
         self.conn = None
         self.pending = 0
-        ceilings = {
+        self.interval_seconds = max(300, interval_seconds)
+        defaults = {
             "round": 3,
             "search": 6,
             "read": 6,
@@ -35,9 +36,9 @@ class Store:
             "input_units": 50000,
             "output_units": 8000,
         }
-        self.limits = {
-            key: min(value, max(0, (limits or {}).get(key, value))) for key, value in ceilings.items()
-        }
+        self.limits = {key: (limits or {}).get(key, value) for key, value in defaults.items()}
+        if any(type(v) is not int or v < 0 for v in self.limits.values()):
+            raise StoreError("invalid_budget")
 
     async def call(self, method, *args):
         if self.pending >= 32 and method != "close":
@@ -45,11 +46,20 @@ class Store:
         self.pending += 1
         future = asyncio.get_running_loop().run_in_executor(self.executor, getattr(self, "_" + method), *args)
 
-        def finished(_):
-            self.pending -= 1
+        released = False
+
+        def finished(_=None):
+            nonlocal released
+            if not released:
+                released = True
+                self.pending -= 1
 
         future.add_done_callback(finished)
-        return await asyncio.shield(future)
+        try:
+            return await asyncio.shield(future)
+        finally:
+            if future.done():
+                finished()
 
     def _open(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -118,7 +128,9 @@ class Store:
                 if tuple(old) != (persona, kind, input_units, output_units):
                     raise StoreError("idempotency_conflict")
                 return False
-            if self._get("__budget__", "budget_fault", False):
+            if (limits["input_units"] or limits["output_units"]) and self._get(
+                "__budget__", "budget_fault", False
+            ):
                 raise StoreError("budget_unconfirmed")
             count = self.conn.execute(
                 "SELECT count(*) FROM usage WHERE day=? AND kind=?",
@@ -129,9 +141,9 @@ class Store:
                 (self._day(),),
             ).fetchone()
             if (
-                count >= limits[kind]
-                or used[0] + input_units > limits["input_units"]
-                or used[1] + output_units > limits["output_units"]
+                (limits[kind] and count >= limits[kind])
+                or (limits["input_units"] and used[0] + input_units > limits["input_units"])
+                or (limits["output_units"] and used[1] + output_units > limits["output_units"])
             ):
                 raise StoreError("budget_exceeded")
             self.conn.execute(
@@ -147,14 +159,19 @@ class Store:
         if not row:
             raise StoreError("unknown_reservation")
         if isinstance(actual, dict):
-            for key, reserved in [("prompt_tokens", row[0]), ("completion_tokens", row[1])]:
-                if type(actual.get(key)) is int and actual[key] > reserved:
+            for key, reserved, limit in [
+                ("prompt_tokens", row[0], self.limits["input_units"]),
+                ("completion_tokens", row[1], self.limits["output_units"]),
+            ]:
+                if limit and type(actual.get(key)) is int and actual[key] > reserved:
                     self._set("__budget__", "budget_fault", True)
         with self.conn:
             if isinstance(actual, dict) and all(
                 type(actual.get(k)) is int and actual[k] >= 0 for k in ("prompt_tokens", "completion_tokens")
             ):
-                if actual["prompt_tokens"] <= row[0] and actual["completion_tokens"] <= row[1]:
+                if (not self.limits["input_units"] or actual["prompt_tokens"] <= row[0]) and (
+                    not self.limits["output_units"] or actual["completion_tokens"] <= row[1]
+                ):
                     self.conn.execute(
                         "UPDATE usage SET input=?,output=? WHERE id=?",
                         (actual["prompt_tokens"], actual["completion_tokens"], request_id),
@@ -164,6 +181,8 @@ class Store:
             )
 
     def _output_allowance(self):
+        if not self.limits["output_units"]:
+            return None
         used = self.conn.execute(
             "SELECT coalesce(sum(output),0) FROM usage WHERE day=?", (self._day(),)
         ).fetchone()[0]
@@ -178,37 +197,58 @@ class Store:
             )
         ]
 
-    def _start_job(self, persona):
-        last = self.conn.execute("SELECT created FROM jobs ORDER BY created DESC LIMIT 1").fetchone()
-        if last and self.clock() - last[0] < 7200:
+    def _start_job(self, persona, manual=False):
+        if self._next_eligible(manual) > self.clock():
             raise StoreError("interval")
         key = uuid.uuid4().hex
         with self.conn:
             self._reserve(persona, "round", key)
             self.conn.execute(
                 "INSERT INTO jobs VALUES (?,?,?,?,?,?,?)",
-                (key, persona, "running", "", "", self.clock(), "{}"),
+                (
+                    key,
+                    persona,
+                    "running",
+                    "",
+                    "",
+                    self.clock(),
+                    json.dumps({"origin": "manual" if manual else "autonomous"}),
+                ),
             )
         return key
 
     def _eligibility(self):
-        row = self.conn.execute("SELECT created FROM jobs ORDER BY created DESC LIMIT 1").fetchone()
-        if row and self.clock() - row[0] < 7200:
+        if self._next_eligible() > self.clock():
             return "interval"
         count = self.conn.execute(
             "SELECT count(*) FROM usage WHERE day=? AND kind='round'", (self._day(),)
         ).fetchone()[0]
-        if count >= self.limits["round"]:
+        if self.limits["round"] and count >= self.limits["round"]:
             return "budget_exceeded"
-        if self._get("__budget__", "budget_fault", False):
+        if (self.limits["input_units"] or self.limits["output_units"]) and self._get(
+            "__budget__", "budget_fault", False
+        ):
             return "budget_unconfirmed"
         return "ready"
 
+    def _next_eligible(self, manual=False):
+        last = self.conn.execute("SELECT created FROM jobs ORDER BY created DESC LIMIT 1").fetchone()
+        cooldown = last["created"] + 300 if last else 0
+        if not manual:
+            auto = self.conn.execute(
+                "SELECT created FROM jobs WHERE coalesce(json_extract(detail,'$.origin'),'autonomous')!='manual' ORDER BY created DESC LIMIT 1"
+            ).fetchone()
+            if auto:
+                cooldown = max(cooldown, auto["created"] + self.interval_seconds)
+        return cooldown
+
     def _job(self, key, status, topic="", query="", detail=None):
+        previous = self.conn.execute("SELECT detail FROM jobs WHERE id=?", (key,)).fetchone()
+        merged = {**(json.loads(previous[0]) if previous else {}), **(detail or {})}
         with self.conn:
             self.conn.execute(
                 "UPDATE jobs SET status=?,topic=?,query=?,detail=? WHERE id=?",
-                (status, topic[:160], query[:300], json.dumps(detail or {}), key),
+                (status, topic[:160], query[:300], json.dumps(merged), key),
             )
 
     def _jobs(self, persona):

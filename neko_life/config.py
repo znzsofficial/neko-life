@@ -14,6 +14,7 @@ class ExploreSettings(PluginConfigBase):
     exclusions: list[str] = Field(default_factory=list, description="禁止探索的话题关键词")
     start: str = Field(default="09:00")
     end: str = Field(default="23:00")
+    interval_minutes: int = Field(default=120, ge=5, le=10080, description="探索间隔；最少5分钟避免后台空转")
 
 
 class ModelSettings(PluginConfigBase):
@@ -30,12 +31,12 @@ class ContextSettings(PluginConfigBase):
 
 
 class BudgetSettings(PluginConfigBase):
-    rounds: int = Field(default=3, ge=0, le=3, description="每日探索轮数；当前安全上限3，可调低")
-    search: int = Field(default=6, ge=0, le=6)
-    read: int = Field(default=6, ge=0, le=6)
-    model: int = Field(default=16, ge=0, le=16)
-    input_units: int = Field(default=50000, ge=0, le=50000, description="保守输入预算单位，不是精确账单token")
-    output_units: int = Field(default=8000, ge=0, le=8000)
+    rounds: int = Field(default=3, ge=0, description="每日探索轮数，0不限")
+    search: int = Field(default=6, ge=0, description="每日搜索次数，0不限")
+    read: int = Field(default=6, ge=0, description="每日正文读取次数，0不限")
+    model: int = Field(default=16, ge=0, description="每日额外模型调用次数，0不限")
+    input_units: int = Field(default=50000, ge=0, description="输入预留预算，0不限；非精确账单token")
+    output_units: int = Field(default=8000, ge=0, description="输出预留预算，0不限；不影响单次响应安全大小")
 
 
 class SharingSettings(PluginConfigBase):

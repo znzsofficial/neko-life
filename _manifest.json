@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "id": "neko.life",
   "name": "Neko Life",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "有预算的公开资料探索、生活日程与有界背景，默认关闭。",
   "author": {"name": "NekoLaska", "url": "https://github.com/znzsofficial"},
   "urls": {"repository": "https://github.com/znzsofficial", "homepage": "https://github.com/znzsofficial"},

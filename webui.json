@@ -9,10 +9,14 @@
     "icon": "list",
     "poll_interval_seconds": 30,
     "queries": {"status": {"api": "status_v1", "version": "1"}},
+    "actions": {"explore_now": {"api": "explore_now_v1", "version": "1", "parameters": {"topic": {"type": "string", "required": false}}, "confirmation": "启动一轮真实搜索/模型探索并保存笔记，可能计费；不会强制发送聊天消息。"}},
     "content": [
       {"type": "text", "label": "运行状态", "value": {"source": "status", "field": "state_label"}},
       {"type": "text", "label": "最近错误（未发生则无）", "value": {"source": "status", "field": "error_label"}},
       {"type": "text", "label": "最近跳过原因", "value": {"source": "status", "field": "skip_label"}},
+      {"type": "text", "label": "最近尝试", "value": {"source": "status", "field": "attempt_label"}},
+      {"type": "text", "label": "最近保存笔记", "value": {"source": "status", "field": "success_label"}},
+      {"type": "text", "label": "下轮探索资格", "value": {"source": "status", "field": "next_label"}},
       {"type": "text", "label": "预算说明", "value": {"source": "status", "field": "budget_label"}},
       {"type": "text", "label": "当前角色活动（非现实证据）", "value": {"source": "status", "field": "activity_label"}},
       {"type": "table", "label": "角色日程", "value": {"source": "status", "field": "schedule_rows"}, "columns": [
@@ -21,18 +25,16 @@
       ]},
       {"type": "table", "label": "最近探索（含未探索和失败）", "value": {"source": "status", "field": "job_rows"}, "columns": [
         {"field": "at", "label": "时间"}, {"field": "status", "label": "状态"},
-        {"field": "topic", "label": "主题"}, {"field": "query", "label": "实际查询"},
-        {"field": "reason", "label": "说明"}
+        {"field": "origin", "label": "发起方式"}
       ]},
-      {"type": "table", "label": "公开见闻与来源", "value": {"source": "status", "field": "note_rows"}, "columns": [
-        {"field": "topic", "label": "主题"}, {"field": "summary", "label": "资料摘要"},
-        {"field": "opinion", "label": "个人看法"}, {"field": "sources", "label": "来源与阅读范围"}
-      ]},
-      {"type": "table", "label": "今日用量（预留含未知，非精确金额）", "value": {"source": "status", "field": "usage"}, "columns": [
+      {"type": "text", "label": "最近实际查询", "value": {"source": "status", "field": "query_text"}},
+      {"type": "text", "label": "公开见闻与来源", "value": {"source": "status", "field": "notes_text"}},
+      {"type": "table", "label": "今日用量（预留含未知，非精确金额）", "value": {"source": "status", "field": "usage_rows"}, "columns": [
         {"field": "kind", "label": "类型"}, {"field": "calls", "label": "次数"},
         {"field": "input_reserved", "label": "输入已记账/预留"}, {"field": "output_reserved", "label": "输出已记账/预留"}
       ]},
-      {"type": "text", "label": "暂停与管理", "value": {"source": "status", "field": "manage_label"}}
+      {"type": "text", "label": "暂停与管理", "value": {"source": "status", "field": "manage_label"}},
+      {"type": "button", "label": "探索一轮，只记笔记", "action": "explore_now", "variant": "muted"}
     ]
   }]
 }

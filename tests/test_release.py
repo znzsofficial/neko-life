@@ -17,12 +17,13 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("maisaka.proactive.trigger", manifest["capabilities"])
         self.assertNotIn("send.text", manifest["capabilities"])
 
-    def test_webui_only_uses_declared_private_query_no_mutations(self):
+    def test_webui_queries_and_explicit_exploration_action(self):
         document = json.loads((ROOT / "webui.json").read_text(encoding="utf-8"))
         self.assertEqual(document["schema_version"], 2)
         page = document["pages"][0]
         self.assertEqual(page["queries"]["status"]["api"], "status_v1")
-        self.assertNotIn("actions", page)
+        self.assertEqual(page["actions"]["explore_now"]["api"], "explore_now_v1")
+        self.assertTrue(page["actions"]["explore_now"]["confirmation"])
         self.assertNotIn("forms", page)
 
     def test_release_contains_webui_and_provenance_never_runtime_files(self):

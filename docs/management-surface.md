@@ -27,3 +27,18 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 No raster ships. Schema and private API checks precede runtime use. A live
 desktop/mobile visual check remains necessary before claiming visual acceptance.
+
+## Verified extension behavior
+
+The real host workspace was inspected at 1440px and 390px, at the top and
+bottom of its scroll container. Body width stays within each viewport. Long
+note text and source URLs now use full-width paragraphs instead of narrow
+multi-column cells, and status/quota copy is readable Chinese. Host typography,
+colors, navigation, focus and theme rendering are unchanged; no new visual
+world or raster asset is introduced. The existing host mobile activity bubble
+can overlap the lower edge temporarily; it is outside this extension's source.
+
+Authentication was confined to an ephemeral browser context reached by a
+temporary SSH forward. No access token, cookie export or login screenshot is
+part of source, test fixtures or documentation. Screenshots with live operator
+context remain local temporary evidence, not release assets.

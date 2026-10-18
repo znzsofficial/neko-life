@@ -38,6 +38,8 @@ class NekoLifePlugin(MaiBotPlugin):
         self.persona = ""
         self.error = ""
         self.clear_confirmation = None
+        self.exploration_lock = asyncio.Lock()
+        self.manual_task = None
 
     async def on_load(self):
         async with self.lifecycle:
@@ -50,7 +52,9 @@ class NekoLifePlugin(MaiBotPlugin):
         self.persona = ""
         limits = self.config.budget.model_dump()
         limits["round"] = limits.pop("rounds")
-        self.store = Store(self.ctx.paths.data_dir, limits=limits)
+        self.store = Store(
+            self.ctx.paths.data_dir, limits=limits, interval_seconds=self.config.explore.interval_minutes * 60
+        )
         try:
             await self.store.call("open")
             identity = await self.ctx.config.get("personality.personality", "")
@@ -73,6 +77,10 @@ class NekoLifePlugin(MaiBotPlugin):
 
     async def _close(self):
         self.snapshot, self.notes = None, []
+        if self.manual_task is not None:
+            self.manual_task.cancel()
+            await asyncio.gather(self.manual_task, return_exceptions=True)
+            self.manual_task = None
         if self.task is not None:
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)
@@ -138,7 +146,8 @@ class NekoLifePlugin(MaiBotPlugin):
                             self.config.explore.exclusions,
                             identity=self.schedule.identity,
                         )
-                        await explorer.run()
+                        async with self.exploration_lock:
+                            await explorer.run()
                         self.notes = await self.store.call("notes", self.persona, 5)
                     else:
                         await self.store.call(
@@ -285,6 +294,10 @@ class NekoLifePlugin(MaiBotPlugin):
         try:
             if action in {"pause", "resume"}:
                 await self.store.call("set", self.persona, "paused", action == "pause")
+                if action == "pause" and self.manual_task:
+                    self.manual_task.cancel()
+                    await asyncio.gather(self.manual_task, return_exceptions=True)
+                    self.manual_task = None
                 if action == "pause" and self.task:
                     self.task.cancel()
                     await asyncio.gather(self.task, return_exceptions=True)
@@ -319,6 +332,10 @@ class NekoLifePlugin(MaiBotPlugin):
                     return False, "确认已过期或身份不匹配", True
                 self.clear_confirmation = None
                 await self.store.call("set", self.persona, "paused", True)
+                if self.manual_task:
+                    self.manual_task.cancel()
+                    await asyncio.gather(self.manual_task, return_exceptions=True)
+                    self.manual_task = None
                 if self.task:
                     self.task.cancel()
                     await asyncio.gather(self.task, return_exceptions=True)
@@ -369,7 +386,9 @@ class NekoLifePlugin(MaiBotPlugin):
             "last_success": await self.store.call("get", self.persona, "last_success")
             if self.store and self.persona
             else None,
-            "earliest_next_round": jobs[0]["created"] + 7200 if jobs else None,
+            "earliest_next_round": await self.store.call("next_eligible")
+            if self.store and self.persona
+            else None,
             "usage": await self.store.call("usage", self.persona) if self.store and self.persona else [],
             "jobs": jobs,
             "notes": self.notes,
@@ -391,11 +410,55 @@ class NekoLifePlugin(MaiBotPlugin):
             if self.store and self.persona
             else "未就绪"
         )
+        labels = {
+            "interval": "尚未到下一轮探索时间",
+            "outside_window": "不在允许探索时段",
+            "budget_exceeded": "已达到配置的日限额",
+            "budget_unconfirmed": "用量待管理员核实",
+            "saved": "已保存笔记",
+            "skipped": "本轮选择不探索",
+            "failed": "失败",
+            "running": "进行中",
+            "unknown": "结果未确认",
+            "discarded": "未发现值得保留的内容",
+            "empty": "未取得有效来源",
+            "duplicate": "与已有内容重复",
+            "generated": "角色生成",
+            "template": "本地模板",
+            "operator_edited": "管理员修改",
+            "future_regenerated": "未来节点重生成",
+            "round": "探索轮次",
+            "search": "搜索",
+            "read": "正文读取",
+            "model": "模型调用",
+        }
+        quota_names = {
+            "rounds": "探索轮次",
+            "search": "搜索",
+            "read": "正文",
+            "model": "模型调用",
+            "input_units": "输入预算",
+            "output_units": "输出预算",
+        }
+        caps = self.config.budget.model_dump()
+        budget_text = (
+            "日成本限额已关闭，用量继续记录。"
+            if not any(caps.values())
+            else "每日上限："
+            + "、".join(quota_names[k] + ("不限" if v == 0 else str(v)) for k, v in caps.items())
+            + "。"
+        )
         result.update(
             state_label="已启用" if result["enabled"] else "已关闭",
             error_label=self.error or "无",
-            skip_label=skip,
-            budget_label="每天最多3轮探索、6次搜索、6篇正文；模型16次/输出8000预算单位。金额未知，实际限制见配置。",
+            skip_label=labels.get(skip, skip),
+            budget_label=budget_text + "并发、去重、超时及失败退避保留；金额未知。",
+            attempt_label=at(result["last_attempt"]),
+            success_label=at(result["last_success"]),
+            next_label=at(result["earliest_next_round"]) + "起可再次自动探索（还需符合时窗）"
+            if jobs
+            else "尚无探索记录",
+            usage_rows=[{**row, "kind": labels.get(row["kind"], row["kind"])} for row in result["usage"]],
             activity_label=(self.snapshot or {}).get("scene", {}).get("summary", "快照未就绪"),
             manage_label="私聊管理员：/neko-life pause 或 resume；配置页控制联网/模型/分享，clear需二次确认。",
             schedule_rows=[
@@ -403,16 +466,19 @@ class NekoLifePlugin(MaiBotPlugin):
                     "start": hhmm(n["start"]),
                     "end": hhmm(n["end"]),
                     "summary": n["summary"],
-                    "source": (self.snapshot or {}).get("source", "unknown"),
+                    "source": labels.get((self.snapshot or {}).get("source", "unknown"), "未知"),
                 }
                 for n in (self.snapshot or {}).get("nodes", [])
             ],
             job_rows=[
                 {
                     "at": at(j["created"]),
-                    "status": j["status"],
+                    "status": labels.get(j["status"], j["status"]),
                     "topic": j["topic"],
                     "query": j["query"],
+                    "origin": {"manual": "管理员请求", "autonomous": "自主选题"}.get(
+                        json.loads(j["detail"]).get("origin"), "未记录"
+                    ),
                     "reason": str(json.loads(j["detail"]).get("reason", "")),
                 }
                 for j in jobs
@@ -423,13 +489,89 @@ class NekoLifePlugin(MaiBotPlugin):
                     "summary": n["summary"],
                     "opinion": n["opinion"],
                     "sources": "\n".join(
-                        s["url"] + " [" + s.get("source_kind", "unknown") + "]" for s in n["sources"]
+                        s["url"]
+                        + ("（读取正文摘录）" if s.get("source_kind") == "body" else "（仅搜索摘要）")
+                        for s in n["sources"]
                     ),
                 }
                 for n in self.notes
             ],
         )
+        result["notes_text"] = "\n\n".join(
+            n["topic"]
+            + "\n资料摘要："
+            + n["summary"]
+            + "\n个人看法："
+            + n["opinion"]
+            + "\n来源与阅读范围：\n"
+            + "\n".join(
+                s["url"] + ("（正文摘录）" if s.get("source_kind") == "body" else "（仅搜索摘要）")
+                for s in n["sources"]
+            )
+            for n in self.notes
+        ) or ("笔记快照暂不可用，请查看运行错误。" if self.error else "尚无笔记；探索可以选择不保留内容。")
+        result["query_text"] = (
+            "\n\n".join(at(j["created"]) + " · " + j["query"] for j in jobs[:5] if j["query"])
+            or "尚无实际查询。"
+        )
         return result
+
+    @API(
+        name="explore_now_v1",
+        description="管理员显式启动一轮公开探索，结果只写笔记",
+        version="1",
+        public=False,
+    )
+    async def explore_now(self, topic="", **kwargs):
+        del kwargs
+        from .exploration import safe_query
+
+        if (
+            not self.config.plugin.enabled
+            or not self.config.explore.enabled
+            or not self.config.models.enabled
+            or not self.store
+            or not self.persona
+        ):
+            return {"success": False, "status": "disabled"}
+        if self.exploration_lock.locked() or (self.manual_task is not None and not self.manual_task.done()):
+            return {"success": False, "status": "busy"}
+        if await self.store.call("get", self.persona, "paused", False):
+            return {"success": False, "status": "paused"}
+        try:
+            if topic:
+                topic = safe_query(topic)
+            if not isinstance(topic, str):
+                raise ValueError
+            self.manual_task = asyncio.create_task(self._manual_exploration(topic))
+            return {"success": True, "status": "queued", "delivery": "notes_only"}
+        except ValueError:
+            return {"success": False, "status": "invalid_topic"}
+
+    async def _manual_exploration(self, topic):
+        async with self.exploration_lock:
+            try:
+                bridge = WebBridge(self.ctx, Path(self.ctx.paths.data_dir) / "web-client.json")
+                await bridge.call("capabilities", {})
+                explorer = Explorer(
+                    self.store,
+                    self.model,
+                    bridge,
+                    self.persona,
+                    self.config.explore.interests,
+                    self.config.explore.exclusions,
+                    identity=self.schedule.identity,
+                )
+                await explorer.run(topic_override=topic, manual=True)
+                self.notes = await self.store.call("notes", self.persona, 5)
+                self.error = ""
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self.error = str(exc) if re.fullmatch("[a-z_]{1,64}", str(exc)) else type(exc).__name__
+                await self.store.call(
+                    "set", self.persona, "last_error", {"status": self.error, "at": time.time()}
+                )
 
     @API(name="sharing_v1", description="签名授权的公开见闻候选与结算", version="1", public=True)
     async def sharing_api(self, packet=None, **kwargs):

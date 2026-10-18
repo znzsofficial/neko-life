@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neko-life-maibot"
-version = "0.1.0"
+version = "0.2.0"
 description = "Bounded public exploration and fictional life context for MaiBot"
 requires-python = ">=3.12"
 dependencies = ["maibot-plugin-sdk>=2.12,<3"]

@@ -29,11 +29,13 @@ class ModelService:
         # not a guarantee about hidden reasoning/provider billing tokens.
         reserved = len((system + text).encode("utf-8")) + 1000
         allowance = await self.store.call("output_allowance")
-        if allowance < output:
+        if allowance is not None and allowance < output:
             raise ModelError("budget_exceeded")
         # Providers may include hidden reasoning/continuations beyond max_tokens.
         # Reserve the remaining daily envelope, then reconcile known usage.
-        await self.store.call("reserve", self.persona, "model", request_id, reserved, allowance)
+        await self.store.call(
+            "reserve", self.persona, "model", request_id, reserved, output if allowance is None else allowance
+        )
         async with asyncio.timeout(25):
             result = await self.context.llm.generate(
                 model="",

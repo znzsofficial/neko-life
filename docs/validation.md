@@ -1,6 +1,6 @@
 # Validation boundaries (2026-10-18)
 
-The complete OpenChamber plan is not yet finished. This is an enabled 0.1
+The complete OpenChamber plan is not yet finished. This is an enabled 0.2
 delivery with explicit evidence boundaries, not an assertion that every route
 has been exercised in production.
 
@@ -28,11 +28,39 @@ has been exercised in production.
   live query validation are not desktop/mobile screenshot approval. Mechanical
   declarative-source design check reports no findings.
 
-Remaining natural-use checks: successful real search and bounded body reading,
-source note quality, host hook composition with media/TTS, precise QQ task
-attribution, desktop/mobile management rendering and independently authorized
-autonomous drawing. These must not be relabeled as passed because an offline
-test or config toggle succeeded.
+Remaining natural-use checks: ongoing autonomous topic quality, exact QQ/TTS
+delivery attribution and independently authorized autonomous drawing. Success
+on an explicit administrator research request does not prove an autonomous
+selection or message delivery. Unknown receipts must stay unknown.
+
+## Subsequent authorized progress
+
+The operator explicitly requested disabling cost limits and continuing remaining
+work. All six Life daily cost limits and both Web daily limits were set to zero
+(unlimited), while concurrency, request bounds, failures/unknown-work guards,
+dedupe and chat cooldown remain. Ledger history was not cleared. The new release
+supports configurable intervals without silently changing the live two-hour
+automatic cadence.
+
+An explicit administrator exploration successfully searched Exa, read two NASA
+official pages through the protected public downloader, and saved one note with
+body-vs-snippet provenance. This proves the live retrieval-to-note path, not an
+autonomously chosen topic or a QQ delivery. Further sources remained snippets.
+Desktop (1440px) and mobile (390px) management pages were checked at both top
+and bottom using a temporary SSH forward and private in-memory login. No token,
+cookie state or login screenshot was exported. Both viewports have document
+width equal to viewport width. English statuses/raw quota JSON were replaced
+with readable labels; long notes were changed from cramped table columns to
+full-width paragraphs. The host's existing mobile navigation/live-activity
+overlay can transiently cover the bottom edge; this plugin does not replace it.
+Screenshots stay in the approved local temporary directory, not source/Git.
+
+Regression: Web108 / Life44 / proactive24 pass with actual SDK 2.12, including
+disabled-cost accounting, preserved queues/intervals, terminal result eviction
+without duplicate execution, midnight/DST/offline idempotency, and real Host
+image plus tool-call/output serialization roundtrip. Rapid completed SQLite
+work exposed a false pending-queue count; fixed by exactly-once release on
+completion, not by increasing the queue limit or removing the test.
 
 Rollback order: disable Life and the proactive Life bridge, retain all new
 databases/outbox/keys, then restore matched service versions and their earlier

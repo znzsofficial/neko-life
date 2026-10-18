@@ -67,25 +67,29 @@ class Explorer:
         self.exclusions = list(exclusions)
         self.identity = identity[:1200]
 
-    async def run(self):
+    async def run(self, topic_override="", manual=False):
         if not self.interests:
             raise ExplorationError("interests_not_configured")
-        key = await self.store.call("start_job", self.persona)
+        key = await self.store.call("start_job", self.persona, manual)
         topic = query = ""
         try:
             questions = await self.store.call("questions", self.persona)
             recent = await self.store.call("notes", self.persona, 8)
-            choice = await self.model.generate(
-                "从批准兴趣或未解问题选一个有价值且不重复的问题，可放弃。"
-                "返回{skip:bool,topic:string,query:string,question_id:string}。不包含个人身份或账号。",
-                {
-                    "interests": self.interests,
-                    "persona_context": self.identity,
-                    "exclude": self.exclusions,
-                    "questions": [{"id": q["id"], "text": q["text"]} for q in questions],
-                    "recent_topics": [n["topic"] for n in recent],
-                },
-                output=500,
+            choice = (
+                {"topic": safe_query(topic_override), "query": safe_query(topic_override)}
+                if topic_override
+                else await self.model.generate(
+                    "从批准兴趣或未解问题选一个有价值且不重复的问题，可放弃。"
+                    "返回{skip:bool,topic:string,query:string,question_id:string}。不包含个人身份或账号。",
+                    {
+                        "interests": self.interests,
+                        "persona_context": self.identity,
+                        "exclude": self.exclusions,
+                        "questions": [{"id": q["id"], "text": q["text"]} for q in questions],
+                        "recent_topics": [n["topic"] for n in recent],
+                    },
+                    output=500,
+                )
             )
             if not isinstance(choice, dict):
                 raise ExplorationError("invalid_choice")

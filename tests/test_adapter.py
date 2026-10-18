@@ -33,6 +33,17 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.bot.ctx.llm.generate.assert_not_awaited()
         self.assertFalse((await self.bot.recent(session_id="chat"))["success"])
         self.assertEqual((await self.bot.sharing_api(packet={})), {"success": False, "status": "disabled"})
+        self.assertEqual((await self.bot.explore_now())["status"], "disabled")
+
+    async def test_manual_exploration_remains_private_and_obeys_pause(self):
+        self.bot.config.plugin.enabled = True
+        self.bot.config.explore.enabled = True
+        self.bot.config.models.enabled = True
+        await self.bot.store.call("set", self.bot.persona, "paused", True)
+        self.assertEqual((await self.bot.explore_now(topic="公开天文资料"))["status"], "paused")
+        await self.bot.store.call("set", self.bot.persona, "paused", False)
+        self.assertEqual((await self.bot.explore_now(topic="user@example.com"))["status"], "invalid_topic")
+        self.bot.ctx.llm.generate.assert_not_awaited()
 
     async def test_admin_empty_denies_and_unload_closes_store(self):
         self.assertFalse((await self.bot.status(user_id="123"))[0])

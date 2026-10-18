@@ -182,6 +182,16 @@ class StoreTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(StoreError, "interval"):
             await self.store.call("start_job", "p")
 
+    async def test_operator_requested_round_has_separate_five_minute_guard_not_counter_reset(self):
+        await self.store.call("start_job", "p")
+        self.now[0] += 301
+        with self.assertRaisesRegex(StoreError, "interval"):
+            await self.store.call("start_job", "p")
+        await self.store.call("start_job", "p", True)
+        rounds = next(row for row in await self.store.call("usage", "p") if row["kind"] == "round")
+        self.assertEqual(rounds["calls"], 2)
+        self.assertEqual(await self.store.call("next_eligible"), self.now[0] - 301 + 7200)
+
     async def test_persistent_nonce_rejects_duplicate(self):
         await self.store.call("nonce", "client", "nonce")
         with self.assertRaisesRegex(StoreError, "replay"):
@@ -194,16 +204,36 @@ class StoreTests(unittest.IsolatedAsyncioTestCase):
             await self.store.call("purge_notes", "p")
         self.assertEqual(len(await self.store.call("notes", "p")), 1)
 
-    async def test_config_can_lower_but_never_increase_safety_ceiling(self):
+    async def test_daily_caps_configurable_and_distinct_from_queue_safety(self):
         other = Store(
             Path(self.temp.name) / "other", clock=lambda: self.now[0], limits={"search": 1, "read": 99}
         )
         await other.call("open")
         try:
-            self.assertEqual(other.limits["read"], 6)
+            self.assertEqual(other.limits["read"], 99)
             await other.call("reserve", "p", "search", "first")
             with self.assertRaisesRegex(StoreError, "budget_exceeded"):
                 await other.call("reserve", "p", "search", "second")
+        finally:
+            await other.close()
+
+    async def test_zero_disables_cost_limits_but_keeps_accounting_and_interval(self):
+        other = Store(
+            Path(self.temp.name) / "unlimited",
+            clock=lambda: self.now[0],
+            limits={key: 0 for key in ("round", "search", "read", "model", "input_units", "output_units")},
+        )
+        await other.call("open")
+        try:
+            for i in range(20):
+                await other.call("reserve", "p", "model", str(i), 1000, 100)
+                await other.call("settle", "p", str(i), {"prompt_tokens": 2000, "completion_tokens": 2000})
+            self.assertIsNone(await other.call("output_allowance"))
+            self.assertEqual((await other.call("usage", "p"))[0]["calls"], 20)
+            self.assertEqual((await other.call("usage", "p"))[0]["output_reserved"], 40000)
+            await other.call("start_job", "p")
+            with self.assertRaisesRegex(StoreError, "interval"):
+                await other.call("start_job", "p")
         finally:
             await other.close()
 

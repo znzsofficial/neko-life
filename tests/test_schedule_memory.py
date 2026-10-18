@@ -56,3 +56,24 @@ class ScheduleMemoryTests(unittest.IsolatedAsyncioTestCase):
         await service.tick(now, snapshot)
         model.generate.assert_awaited_once()
         self.assertEqual((await self.store.call("get", "p", "diary:2026-10-18"))["status"], "unavailable")
+
+    async def test_cross_midnight_offline_and_dst_state_is_idempotent(self):
+        for index, now in enumerate(
+            [
+                datetime(2026, 10, 19, 0, 30, tzinfo=ZoneInfo("Asia/Shanghai")),
+                datetime(2026, 11, 1, 2, 30, tzinfo=ZoneInfo("America/New_York")),
+            ]
+        ):
+            persona = "clock-" + str(index)
+            await self.store.call(
+                "set",
+                persona,
+                "state",
+                {"energy": 70, "hunger": 20, "mood": 0.15, "updated": now.timestamp() - 90 * 3600},
+            )
+            schedule = Schedule(self.store, persona, self.model)
+            one = await schedule.tick(now)
+            two = await schedule.tick(now)
+            self.assertEqual(one["state"], two["state"])
+            self.assertEqual(two["state"]["updated"], now.timestamp())
+            self.assertTrue(0 <= two["state"]["energy"] <= 100)

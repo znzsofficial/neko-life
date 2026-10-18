@@ -1,7 +1,8 @@
 # Neko Life
 
 - Implement the approved OpenChamber plan; tick only completed, tested steps.
-- Local independent project; do not publish a repository without confirmation.
+- Independent project. User authorized public open-source release after completion
+  and verification on 2026-10-18; never publish runtime configuration or data.
 - Default disabled. Real model/search/QQ sends and autonomous drawings have
   separate rollout gates. Never treat task submission as delivery success.
 - No host/persona/history mutation. No direct autonomous send. Public web facts,
