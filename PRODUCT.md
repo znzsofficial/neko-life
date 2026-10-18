@@ -27,8 +27,9 @@ chrome; this project does not create another frontend or visual identity.
 
 Show real runtime state, schedule, recent exploration jobs, source notes and
 reserved usage. Unknown cost is explicit, failed requests are not empty states,
-and roleplay schedules are not real-world evidence. Controls remain in existing
-configuration and private administrator commands until mutation UI is reviewed.
+and roleplay schedules are not real-world evidence. Pause/configuration/cleanup
+remain in host settings and private administrator commands. One reviewed,
+confirmed workspace action can explicitly start research that only saves notes.
 
 ## Evidence on Hand
 

@@ -18,15 +18,18 @@ fictional schedule, exploration audit and source notes, finally budget usage.
 
 FIRST VIEWPORT: compact status lines with explicit unknown monetary cost,
 followed by the current role activity and schedule table. Commands/settings
-remain the route to pause/configure; no unimplemented buttons.
+remain the route to pause/configure; the one confirmed exploration action is
+real, starts only a notes job and is not an automatic QQ-send control.
 
 FORM: extension inside established host workspace, fixed by approved plan; no
 concept tournament or new frontend scaffold.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
+FINISH: record the finish review and inherited host ownership; this extension
+does not create a separate DESIGN.md, token system, visual identity or raster.
 
-No raster ships. Schema and private API checks precede runtime use. A live
-desktop/mobile visual check remains necessary before claiming visual acceptance.
+No raster ships. Schema/private query checks and desktop/mobile top/bottom
+inspection are complete. Independent finish review returned SHIP at the narrow
+extension scope, not measured contrast/accessibility or whole-host certification.
 
 ## Verified extension behavior
 
