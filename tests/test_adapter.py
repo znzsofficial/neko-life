@@ -69,7 +69,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         components = collect_components(self.bot)
         tools = [x for x in components if x["type"] == "TOOL"]
         self.assertEqual({tool["name"] for tool in tools}, {"neko_life_recent", "neko_life_draw_scene"})
-        self.assertTrue(all(len(tool["metadata"]["description"]) <= 90 for tool in tools))
+        self.assertTrue(all(len(tool["metadata"]["description"]) <= 45 for tool in tools))
         status = next(x for x in components if x["name"] == "status_v1")
         self.assertFalse(status["metadata"]["public"])
 

@@ -200,7 +200,7 @@ class NekoLifePlugin(MaiBotPlugin):
 
     @Tool(
         "neko_life_draw_scene",
-        description="按当前生活场景自主配环境插画，不画人物；仅授权会话可用，可不画。不用于自画像/改图，禁止失败后换工具重发。",
+        description="自主配当前生活环境插画，不画人物；失败后不要换工具重发。",
     )
     async def draw_scene_tool(self, **kwargs):
         session = kwargs.get("session_id") or kwargs.get("stream_id") or ""
@@ -259,7 +259,7 @@ class NekoLifePlugin(MaiBotPlugin):
             }
         return {"action": "continue"}
 
-    @Tool("neko_life_recent", description="查看当前允许会话可见的近期公开见闻。")
+    @Tool("neko_life_recent", description="查看近期公开见闻和来源，仅限已允许的聊天。")
     async def recent(self, **kwargs):
         session = kwargs.get("session_id") or kwargs.get("stream_id") or ""
         if (

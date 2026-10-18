@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — Plain-language settings
+
+- 按用途显示中文分组、名称、单位、示例与前置条件，隐藏内部配置版本；键名、默认值和现有设置不变。
+- 精简公开见闻/自主配图说明，保留来源、无人环境及防重复生成边界。
+- 增加真实SDK配置Schema与中文标签回归；线上字面量问号的话题由运维单独备份/修复，不通过通用迁移覆盖用户自定义值。
+
 ## 0.4.0 — Authorized scene illustrations
 
 - 新增可选`neko_life_draw_scene`，Planner可自主选择生活环境配图，无需用户逐次要求；不另建定时器。

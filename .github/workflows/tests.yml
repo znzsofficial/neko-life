@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: znzsofficial/neko-web
-          ref: 62a985dea5e798487833d6c435b89b01fec77a43
+          ref: af95e2f7c1ab5a6e9da0dfddca4b47f4e9c3fbaf
           path: workspace/neko-web
       - uses: actions/checkout@v7.0.1
         with:
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: znzsofficial/neko-tts
-          ref: 3f15e6813f6788113bfad94adcc4a8b0f13ac822
+          ref: d6fe8bc45e2c8d78f2c3cc6ba9a13e6c4fbf27a0
           path: workspace/neko-tts
       - uses: actions/setup-python@v7.0.0
         with:

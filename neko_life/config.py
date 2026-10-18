@@ -1,64 +1,202 @@
+"""Operator-facing labels; stable keys/defaults preserve existing installations."""
+
 from maibot_sdk import Field, PluginConfigBase
 
 
+def ui(label, **extra):
+    return {"label": label, **extra}
+
+
 class PluginSettings(PluginConfigBase):
-    enabled: bool = Field(default=False, description="启用生活服务；新安装关闭")
-    config_version: str = Field(default="1.0.0")
+    """先打开需要的功能，最后打开总开关。关掉后停止新的生活后台任务。"""
+
+    __ui_label__ = "总开关"
+    __ui_order__ = 0
+    enabled: bool = Field(
+        default=False,
+        description="启用生活日程及下面单独打开的功能；首次安装默认关闭。",
+        json_schema_extra=ui("启用Neko Life"),
+    )
+    config_version: str = Field(default="1.0.0", json_schema_extra=ui("配置版本", hidden=True))
 
 
 class ExploreSettings(PluginConfigBase):
-    enabled: bool = Field(default=False, description="自主搜索/阅读；需独立授权及Web能力密钥")
-    interests: list[str] = Field(
-        default_factory=list, description="批准的公开兴趣领域，不填个人身份或私密内容"
+    """让她自己选题、搜索公开网页并记下见闻；不保证每一轮都有收获。"""
+
+    __ui_label__ = "自己上网找见闻"
+    __ui_order__ = 1
+    enabled: bool = Field(
+        default=False,
+        description="允许她自行搜索和阅读公开网页。还需开启后台模型，并配好联网插件。",
+        json_schema_extra=ui("允许自主探索"),
     )
-    exclusions: list[str] = Field(default_factory=list, description="禁止探索的话题关键词")
-    start: str = Field(default="09:00")
-    end: str = Field(default="23:00")
-    interval_minutes: int = Field(default=120, ge=5, le=10080, description="探索间隔；最少5分钟避免后台空转")
+    interests: list[str] = Field(
+        default_factory=list,
+        description="每项填一个想让她关注的领域，如天文、读书、新技术。留空不探索；不要填个人隐私。",
+        json_schema_extra=ui("感兴趣的话题"),
+    )
+    exclusions: list[str] = Field(
+        default_factory=list,
+        description="每项填一个不要搜索的话题关键词；命中就跳过。",
+        json_schema_extra=ui("不要探索的话题"),
+    )
+    start: str = Field(
+        default="09:00",
+        description="北京时间，24小时制，如09:00。与结束时间相同则不探索。",
+        json_schema_extra=ui("每天几点开始", placeholder="09:00"),
+    )
+    end: str = Field(
+        default="23:00",
+        description="北京时间，如23:00；早于开始时间表示跨午夜。",
+        json_schema_extra=ui("每天几点结束", placeholder="23:00"),
+    )
+    interval_minutes: int = Field(
+        default=120,
+        ge=5,
+        le=10080,
+        description="隔多久尝试探索一次，单位分钟。默认120分钟；没兴趣时可以跳过。",
+        json_schema_extra=ui("探索间隔（分钟）"),
+    )
 
 
 class ModelSettings(PluginConfigBase):
-    enabled: bool = Field(default=False, description="允许额外模型调用；仍受统一预算控制")
-    task: str = Field(default="utils", description="宿主模型任务名，不是供应商模型名")
+    """用于选题、整理笔记和补充角色场景，会产生额外模型用量。"""
+
+    __ui_label__ = "后台使用的模型"
+    __ui_order__ = 5
+    enabled: bool = Field(
+        default=False,
+        description="允许生活后台额外调用模型。关闭后只能使用本地模板日程，不能自主研究。",
+        json_schema_extra=ui("允许后台调用模型"),
+    )
+    task: str = Field(
+        default="utils",
+        description="填麦麦已有的模型任务名，默认utils。不是具体模型名，一般不用改。",
+        json_schema_extra=ui("模型任务名", placeholder="utils"),
+    )
 
 
 class ContextSettings(PluginConfigBase):
-    enabled: bool = Field(default=False, description="为指定会话提供相关短背景")
-    sessions: list[str] = Field(default_factory=list, description="允许注入的宿主会话ID；空列表不注入")
+    """聊天时让她知道自己在做什么、最近看过什么；不会主动发消息。"""
+
+    __ui_label__ = "聊天里用到生活见闻"
+    __ui_order__ = 2
+    enabled: bool = Field(
+        default=False,
+        description="让允许的聊天用到当前角色活动及相关见闻；不修改原人设或聊天历史。",
+        json_schema_extra=ui("在聊天中提供生活背景"),
+    )
+    sessions: list[str] = Field(
+        default_factory=list,
+        description="留空则所有聊天都不注入。填宿主会话ID，不是QQ号或群号；已有值通常不用改。",
+        json_schema_extra=ui("哪些聊天可以使用"),
+    )
     drawing_context: bool = Field(
-        default=False, description="为明确的角色绘图请求补充当前场景；不授权自主配图"
+        default=False,
+        description="用户明确要求画图时，补充当前角色场景。它不会单独开启自主配图。",
+        json_schema_extra=ui("用户要画图时补充场景"),
     )
 
 
 class BudgetSettings(PluginConfigBase):
-    rounds: int = Field(default=3, ge=0, description="每日探索轮数，0不限")
-    search: int = Field(default=6, ge=0, description="每日搜索次数，0不限")
-    read: int = Field(default=6, ge=0, description="每日正文读取次数，0不限")
-    model: int = Field(default=16, ge=0, description="每日额外模型调用次数，0不限")
-    input_units: int = Field(default=50000, ge=0, description="输入预留预算，0不限；非精确账单token")
-    output_units: int = Field(default=8000, ge=0, description="输出预留预算，0不限；不影响单次响应安全大小")
+    """以下都是每日用量上限，填0表示不限。不影响超时、并发和防刷屏保护。"""
+
+    __ui_label__ = "每日费用与用量控制（0为不限）"
+    __ui_order__ = 6
+    rounds: int = Field(
+        default=3,
+        ge=0,
+        description="一天最多尝试几轮自主探索；0不限。一次探索可能搜索并阅读多篇网页。",
+        json_schema_extra=ui("每天探索几轮"),
+    )
+    search: int = Field(
+        default=6,
+        ge=0,
+        description="一天最多搜索几次公开网页；0不限。联网插件自己的上限也会生效。",
+        json_schema_extra=ui("每天搜索几次"),
+    )
+    read: int = Field(
+        default=6,
+        ge=0,
+        description="一天最多读取几篇网页正文；0不限。",
+        json_schema_extra=ui("每天读取几篇正文"),
+    )
+    model: int = Field(
+        default=16,
+        ge=0,
+        description="生活后台一天最多调用几次模型；0不限。不限制普通聊天回复。",
+        json_schema_extra=ui("每天调用几次后台模型"),
+    )
+    input_units: int = Field(
+        default=50000,
+        ge=0,
+        description="后台模型每日输入的估算额度；0不限。不是供应商账单Token，不能精确折算金额。",
+        json_schema_extra=ui("每日模型输入额度（估算）"),
+    )
+    output_units: int = Field(
+        default=8000,
+        ge=0,
+        description="后台模型每日输出额度；0不限。隐藏推理和供应商续写可能超出单次请求，不保证金额封顶。",
+        json_schema_extra=ui("每日模型输出额度（估算）"),
+    )
 
 
 class SharingSettings(PluginConfigBase):
-    enabled: bool = Field(default=False, description="允许主动插件获取公开见闻候选；不是独立调度器")
+    """通过原主动聊天插件择机分享，不另起发言定时器，不改变原概率和冷却。"""
+
+    __ui_label__ = "主动分享见闻"
+    __ui_order__ = 3
+    enabled: bool = Field(
+        default=False,
+        description="把公开见闻交给原主动聊天插件选用；还需对方开启Life联动，未必每次都发。",
+        json_schema_extra=ui("允许主动分享见闻"),
+    )
     sessions: list[str] = Field(
-        default_factory=list, description="批准主动分享的宿主会话ID；仍受原主动白名单约束"
+        default_factory=list,
+        description="填已有宿主会话ID，留空不分享。还须通过原主动插件的目标、时段、概率和冷却检查。",
+        json_schema_extra=ui("可以分享到哪些聊天"),
     )
 
 
 class DrawingSettings(PluginConfigBase):
+    """允许她择机画当前生活环境，不画人物；不是每轮探索都出图。"""
+
+    __ui_label__ = "自主配生活插画"
+    __ui_order__ = 4
     enabled: bool = Field(
-        default=False, description="授权Planner自主选择生活场景插画；需生图端独立开关和密钥"
+        default=False,
+        description="无需用户逐次要求，可按需画环境插画。还需生图插件开启Life授权并配对密钥；会消耗生图额度。",
+        json_schema_extra=ui("允许自主配图"),
     )
-    sessions: list[str] = Field(default_factory=list, description="允许配图的现有宿主会话ID；空列表拒绝")
+    sessions: list[str] = Field(
+        default_factory=list,
+        description="填已有宿主会话ID，留空不配图；生图插件也必须允许同一会话。",
+        json_schema_extra=ui("可以在哪些聊天配图"),
+    )
     cooldown_seconds: int = Field(
-        default=1800, ge=300, le=86400, description="配图防刷屏间隔，非每日成本限额"
+        default=1800,
+        ge=300,
+        le=86400,
+        description="不同场景至少隔多久再画，单位秒。1800秒=30分钟；同一场景不重复，失败未知不自动补画。",
+        json_schema_extra=ui("两次配图至少间隔（秒）"),
     )
 
 
 class MemorySettings(PluginConfigBase):
-    dreams: bool = Field(default=False, description="醒后可选虚构梦境片段；计入统一模型预算")
-    diary: bool = Field(default=False, description="晚间角色日程短日记；不读私聊、不写宿主长期记忆")
+    """可选的角色虚构素材，不是现实经历，也不读取私聊原文。默认关闭。"""
+
+    __ui_label__ = "可选的角色生活片段"
+    __ui_order__ = 7
+    dreams: bool = Field(
+        default=False,
+        description="醒来后偶尔生成一小段虚构梦境，使用后台模型额度；不是现实记忆。",
+        json_schema_extra=ui("生成角色梦境"),
+    )
+    diary: bool = Field(
+        default=False,
+        description="晚上按角色日程写短日记，使用后台模型额度；不记录用户聊天或写入宿主长期记忆。",
+        json_schema_extra=ui("生成角色短日记"),
+    )
 
 
 class Settings(PluginConfigBase):
@@ -70,4 +208,8 @@ class Settings(PluginConfigBase):
     drawing: DrawingSettings = Field(default_factory=DrawingSettings)
     budget: BudgetSettings = Field(default_factory=BudgetSettings)
     memory: MemorySettings = Field(default_factory=MemorySettings)
-    admin_users: list[str] = Field(default_factory=list, description="管理QQ号；空名单拒绝管理命令")
+    admin_users: list[str] = Field(
+        default_factory=list,
+        description="允许在私聊中使用/neko-life管理命令的QQ号，每项一个。留空则没人能用管理命令。",
+        json_schema_extra=ui("管理命令允许的QQ号"),
+    )
