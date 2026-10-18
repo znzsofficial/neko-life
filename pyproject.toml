@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neko-life-maibot"
-version = "0.3.0"
+version = "0.4.0"
 description = "Bounded public exploration and fictional life context for MaiBot"
 readme = "README.md"
 license = "MIT"

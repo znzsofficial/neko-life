@@ -63,13 +63,13 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await self.bot.on_config_update("bot", {}, "2")
         self.assertIsNotNone(self.bot.task)
 
-    async def test_components_register_only_one_short_tool_and_private_status(self):
+    async def test_components_register_two_scoped_tools_and_private_status(self):
         from maibot_sdk.components import collect_components
 
         components = collect_components(self.bot)
         tools = [x for x in components if x["type"] == "TOOL"]
-        self.assertEqual(len(tools), 1)
-        self.assertLessEqual(len(tools[0]["metadata"]["description"]), 45)
+        self.assertEqual({tool["name"] for tool in tools}, {"neko_life_recent", "neko_life_draw_scene"})
+        self.assertTrue(all(len(tool["metadata"]["description"]) <= 90 for tool in tools))
         status = next(x for x in components if x["name"] == "status_v1")
         self.assertFalse(status["metadata"]["public"])
 

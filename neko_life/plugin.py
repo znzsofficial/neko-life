@@ -22,6 +22,7 @@ from .memories import Memories
 from .schedule import Schedule, minute
 from .store import Store
 from .sharing import authenticate
+from .drawing import draw_scene
 
 
 class NekoLifePlugin(MaiBotPlugin):
@@ -180,6 +181,12 @@ class NekoLifePlugin(MaiBotPlugin):
             return ""
         text = latest_text(kwargs.get("items"))
         result = background(self.snapshot, self.notes, text, limit)
+        if self.config.drawing.enabled and session in self.config.drawing.sessions:
+            hint = (
+                "\n已授权按需用neko_life_draw_scene自主配生活环境插画，可不画。禁止绕过此工具重复出图。"
+                "本工具不画人物；自画像仍先query_memory再用neko_draw。"
+            )
+            result = result[: max(0, limit - len(hint))] + hint
         if self.config.context.drawing_context and any(
             word in text for word in ("画一张", "画张", "自画像", "自拍")
         ):
@@ -190,6 +197,35 @@ class NekoLifePlugin(MaiBotPlugin):
             )
             result = result[: max(0, limit - len(drawing))] + drawing
         return result[:limit]
+
+    @Tool(
+        "neko_life_draw_scene",
+        description="按当前生活场景自主配环境插画，不画人物；仅授权会话可用，可不画。不用于自画像/改图，禁止失败后换工具重发。",
+    )
+    async def draw_scene_tool(self, **kwargs):
+        session = kwargs.get("session_id") or kwargs.get("stream_id") or ""
+        async with self.lifecycle:
+            if (
+                not self.config.plugin.enabled
+                or not self.config.drawing.enabled
+                or session not in self.config.drawing.sessions
+                or not self.store
+                or not self.persona
+            ):
+                return {"success": False, "status": "not_authorized"}
+            if await self.store.call("get", self.persona, "paused", False):
+                return {"success": False, "status": "paused"}
+            try:
+                return await draw_scene(
+                    self.ctx,
+                    self.store,
+                    self.persona,
+                    session,
+                    self.snapshot,
+                    self.config.drawing.cooldown_seconds,
+                )
+            except Exception:
+                return {"success": False, "status": "drawing_unavailable"}
 
     @HookHandler(
         "maisaka.planner.before_request",
@@ -399,6 +435,7 @@ class NekoLifePlugin(MaiBotPlugin):
             "snapshot": self.snapshot,
             "explore_enabled": self.config.explore.enabled,
             "models_enabled": self.config.models.enabled,
+            "drawing_enabled": self.config.drawing.enabled,
             "last_attempt": jobs[0]["created"] if jobs else None,
             "last_success": await self.store.call("get", self.persona, "last_success")
             if self.store and self.persona

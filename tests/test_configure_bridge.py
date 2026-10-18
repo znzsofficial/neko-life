@@ -12,6 +12,19 @@ spec.loader.exec_module(pairing)
 
 
 class PairingTests(unittest.TestCase):
+    def test_optional_drawing_pair_is_distinct_and_idempotent(self):
+        result = pairing.configure(
+            self.root / "web", self.root / "life", draw=self.root / "draw", approve=True
+        )
+        life = json.loads((self.root / "life/draw-client.json").read_text())
+        self.assertEqual(life, json.loads((self.root / "draw/life-keys.json").read_text()))
+        self.assertNotEqual(life, json.loads((self.root / "life/web-client.json").read_text()))
+        self.assertEqual(len(result["files"]), 4)
+        second = pairing.configure(
+            self.root / "web", self.root / "life", draw=self.root / "draw", approve=True
+        )
+        self.assertTrue(all(row["action"] == "unchanged" for row in second["files"]))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

@@ -37,3 +37,22 @@ task attribution, sharing remains `unknown`, with no automatic retransmission.
 Preservation baseline: no changes to persona, ordinary chat history, TTS voice
 instruction/15% selection, draw memory-first self portraits, inactive plugins,
 CPA credentials, proxy selection, or existing proactive targeting/probability.
+
+## Optional scene drawing (Life0.4 / Draw1.3)
+
+`neko.draw.life_v1@1` is public but capability-authenticated, default disabled.
+Its dedicated HMAC key is separate from Web and Sharing. The same packet schema
+uses audience `neko.draw`, client `neko.life`, operation `submit`, and body
+`{session_id,request_id,prompt}`. Issued time expires in120s; nonces persist for
+600s (longer than both sides of the validity window). Requests persist before
+generation with session/prompt digest; reuse with a different body fails.
+An identical accepted request never generates again, even after a runner reload.
+Ledger corruption, unknown schemas and full safety capacity fail closed.
+
+Both plugins must enable the feature and allow the host-injected session.
+Life's parameterless tool builds only a bounded current environment-scene prompt,
+not an arbitrary prompt or portrait request. Its persona-local durable scene
+dedupe and cooldown are consumed before calling Draw. The draw endpoint starts
+the existing asynchronous generation/send engine; no image bytes cross the API
+and no paid operation is awaited inside it. `submitted` is only admission, not
+client delivery. Lost/unknown/reloaded work is never resubmitted automatically.

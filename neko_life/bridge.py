@@ -35,11 +35,11 @@ def client_key(path):
         raise BridgeError("invalid_key_file") from None
 
 
-def packet(key, operation, body):
+def packet(key, operation, body, audience="neko.web"):
     value = {
         "v": 1,
         "client": "neko.life",
-        "audience": "neko.web",
+        "audience": audience,
         "issued": int(time.time()),
         "nonce": uuid.uuid4().hex,
         "operation": operation,

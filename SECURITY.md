@@ -30,9 +30,13 @@ or missing usage reports.
 
 Unknown requests or messaging acknowledgements are not automatically replayed.
 Submitted is not delivered. Ordinary QQ anchors are not exact task receipts
-without evidence. Autonomous drawings are not implemented/enabled in this
-release; explicit drawing context preserves memory-first self portraits and
-does not authorize background spending.
+without evidence. Autonomous scene illustrations require independent switches
+and session allowlists in Life and Draw, plus a dedicated per-client key. The
+Draw endpoint verifies the signed operation, target, prompt and request ID,
+persists admission before generation, and never replays unknown work. This
+authorization is separate from ordinary drawing tools. Life exposes no arbitrary
+prompt parameter: only current fictional environment scenes, without portraits.
+Self portraits stay on the existing memory-first explicit drawing path.
 
 Configuration and SQLite notes are unencrypted at rest. Back up private data
 separately. Corrupt/unknown schemas fail closed with the original file retained;

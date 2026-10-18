@@ -2,15 +2,16 @@
 
 ## Supported release contract
 
-Neko Life 0.3 is the first public release of the implemented research, schedule,
+Neko Life 0.4 extends the first public release of the implemented research, schedule,
 context, management and optional sharing integration. "Release complete" does
 not mean every future provider response or QQ client has been demonstrated.
 
-Autonomous drawing is deliberately excluded by the approved safety gate: the
-supported host does not give the drawing tool enough trusted origin evidence
-to distinguish an explicit request from an unrequested life suggestion. Only
-explicit-request scene context is supported; no autonomous-image switch or
-background spend path is advertised.
+Version0.3 excluded autonomous images because the ordinary tool had no trusted
+origin evidence. Version0.4 implements a separate signed Draw execution API:
+independent opt-in switches/session allowlists, dedicated key, persistent
+consume-before-execute admission and no unknown replay. The parameterless Life
+tool only draws current fictional environments without people; memory-first
+self portraits remain on the explicit-request path. There is no second timer.
 
 Sharing has exact success and conservative unknown paths. A host submission is
 not a delivery. Without an exact task/session success acknowledgement, it stays
@@ -24,6 +25,10 @@ unimplemented promise to infer delivery from ordinary chat content.
 - Six-plugin isolated preflight passes: Web108 / Life56 / proactive24 / draw53 /
   TTS63 / video45 = 349 tests. Providers, model calls and send receipts use fake
   services and synthetic media; no paid test or QQ message is emitted.
+- The0.4 preflight passes Web108 / Life64 / proactive24 / draw59 / TTS63 /
+  video45 = 363 tests, additionally covering signed Life→Draw execution with actual SDK
+  envelope handling, default/empty/other-session denial, persistent replays,
+  body tampering, ledger corruption, reload/unload and concurrent/unknown calls.
 - The public CI matrix requires Python 3.12 and 3.14 on Linux and Windows,
   SDK-backed integration tests with pinned adjacent plugin sources, Ruff checks
   and an allowlisted release build. Missing integration checkouts are explicit

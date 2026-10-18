@@ -110,6 +110,32 @@ class Store:
                 (persona, key, json.dumps(value, ensure_ascii=False, allow_nan=False)),
             )
 
+    def _drawing_begin(self, persona, session, scene, cooldown):
+        """Consume before external execution; never retry an uncertain image request."""
+        key = "drawing:" + session
+        previous = self._get(persona, key)
+        digest = fingerprint(scene)
+        if previous and (previous["scene"] == digest or self.clock() - previous["created"] < cooldown):
+            return False, previous
+        record = {
+            "request_id": uuid.uuid4().hex,
+            "scene": digest,
+            "created": self.clock(),
+            "status": "unknown",
+        }
+        self._set(persona, key, record)
+        return True, record
+
+    def _drawing_finish(self, persona, session, request_id, result):
+        key = "drawing:" + session
+        value = self._get(persona, key)
+        if not value or value["request_id"] != request_id:
+            raise StoreError("drawing_request_mismatch")
+        value["status"] = result.get("status", "unknown")
+        value["task_id"] = result.get("task_id", "")
+        self._set(persona, key, value)
+        return value
+
     def _reserve(self, persona, kind, request_id, input_units=0, output_units=0):
         if (
             kind not in {"round", "search", "read", "model"}

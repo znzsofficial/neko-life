@@ -46,6 +46,16 @@ class SharingSettings(PluginConfigBase):
     )
 
 
+class DrawingSettings(PluginConfigBase):
+    enabled: bool = Field(
+        default=False, description="授权Planner自主选择生活场景插画；需生图端独立开关和密钥"
+    )
+    sessions: list[str] = Field(default_factory=list, description="允许配图的现有宿主会话ID；空列表拒绝")
+    cooldown_seconds: int = Field(
+        default=1800, ge=300, le=86400, description="配图防刷屏间隔，非每日成本限额"
+    )
+
+
 class MemorySettings(PluginConfigBase):
     dreams: bool = Field(default=False, description="醒后可选虚构梦境片段；计入统一模型预算")
     diary: bool = Field(default=False, description="晚间角色日程短日记；不读私聊、不写宿主长期记忆")
@@ -57,6 +67,7 @@ class Settings(PluginConfigBase):
     models: ModelSettings = Field(default_factory=ModelSettings)
     context: ContextSettings = Field(default_factory=ContextSettings)
     sharing: SharingSettings = Field(default_factory=SharingSettings)
+    drawing: DrawingSettings = Field(default_factory=DrawingSettings)
     budget: BudgetSettings = Field(default_factory=BudgetSettings)
     memory: MemorySettings = Field(default_factory=MemorySettings)
     admin_users: list[str] = Field(default_factory=list, description="管理QQ号；空名单拒绝管理命令")

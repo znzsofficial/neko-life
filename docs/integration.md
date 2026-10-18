@@ -7,10 +7,10 @@
 | MaiBot / SDK | ≥1.3.9 / ≥2.12，Python≥3.12 | 必需 |
 | neko-web | ≥1.6.1，已配置可用搜索来源 | 自主探索需要 |
 | attention-seeker-mai | ≥2.1.0，Life联动开关 | 主动分享需要 |
-| neko-draw | 现有`neko_draw`工具及外貌记忆提示 | 显式绘图场景增强可选 |
+| neko-draw | ≥1.3.0签名配图API，普通生图/外貌记忆仍独立 | 自主环境插画需要 |
 | neko-tts / neko-video | 各自正常配置 | 可独立工作，不是Life加载依赖 |
 
-Life不复制搜索密钥，不启动第二个主动聊天调度器，不直接发QQ、不直接生图。
+Life不复制搜索/生图供应商密钥，不启动第二个主动聊天调度器，由已有生图引擎执行配图和发送。
 不装Web时可使用本地角色日程；不装主动插件时仍可探索和在允许会话中查询见闻。
 
 ## 配对密钥
@@ -40,13 +40,19 @@ python scripts/configure_bridge.py \
 两组密钥独立；它们不是供应商API Key。脚本只打印文件路径和操作，不打印密钥。
 不要手工复用一组密钥，不要在Issue、截图或聊天中粘贴其内容。
 
+自主配图另加`--draw-data-dir /path/to/data/plugins/neko.draw`，先预览、再加`--approve`。
+将生成**第三组独立能力密钥**：Draw的`life-keys.json`与Life的`draw-client.json`。
+Life配置`drawing.enabled=true`及`drawing.sessions`；Draw配置`life.enabled=true`及`life.sessions`，
+仅双方会话名单的交集可执行。不更改普通生图工具或供应商配置；空名单默认拒绝。
+允许会话同时开启Life背景后，Planner会看到可选配图指引，不强制触发。
+
 ## 按顺序启用
 
 1. 先确认现有neko-web交互搜索可用，检查供应商计费；开启其`automation.enabled`。
 2. Life配置公开兴趣、禁区及模型任务名，按需开启`models.enabled`、`explore.enabled`，最后开启总开关。
 3. 需要聊天背景时开启`context.enabled`，填写宿主真实会话ID；空列表不注入。QQ号不是会话ID，不猜测前缀。
 4. 需要主动分享时，Life开启`sharing.enabled`及允许会话，主动插件开启`life.enabled`；目标仍必须在其原白名单中。
-5. 只开探索不会自动授权画图。`context.drawing_context`仅增强明确的绘图请求，自画像继续先查外貌记忆。
+5. 只开探索不会自动授权画图。`context.drawing_context`仅增强明确请求；自主环境插画需要上面的第三组配对/双方独立开关。自画像继续先查外貌记忆。
 
 新安装默认关闭所有新行为；示例、能力配对和Release解压都不等于自动启用。
 
@@ -71,8 +77,16 @@ Life的`budget.rounds/search/read/model/input_units/output_units`分别设`0`表
 
 ## 回滚与数据
 
+配图只在Planner选择`neko_life_draw_scene`后提交，不另加定时器；同一场景不重复，跨场景仍有
+`drawing.cooldown_seconds`防刷屏（默认1800秒、最少300秒），无强制每日生图成本限额。
+Life保存尝试后再调用签名桥，Draw将请求ID/会话/提示摘要落盘后才启动原引擎；取消/超时/重载均不重放。
+查询原`neko_draw_status`可看当前内存任务进展，任务淘汰或重载后保守未知，不宣称QQ客户端已显示。
+配图只画环境/物品，无人物；不绕过自画像记忆流程，不取聊天历史拼成提示词。
+
 先关闭Life总开关及主动插件Life联动，再回滚匹配版本；保留数据库、能力密钥和outbox，
 不要让旧版打开未知schema，也不重放结果未知的外部任务。日程/笔记位于宿主分配的私有数据目录，
 不是源码文件；使用SQLite一致快照或停写备份，配置、密钥和审计分别保护。原插件仍能独立运行。
+回滚配图同时关闭Life的`drawing.enabled`与Draw的`life.enabled`，保留Draw的`life-admission.db`，
+不要删幂等记录来重新触发未知生图。Life原数据库仍使用schema1，新增状态仅存在kv，不需破坏性迁移。
 
 完整协议见[protocol.md](protocol.md)，隐私与威胁边界见[SECURITY.md](../SECURITY.md)。

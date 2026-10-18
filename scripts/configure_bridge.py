@@ -18,7 +18,11 @@ def load(path):
         raise ValueError("symlink_path_rejected")
     if not path.exists():
         return {}, None
-    limit = 1024 if path.name in {"web-client.json", "life-client.json"} else 8192
+    limit = (
+        1024
+        if path.name in {"web-client.json", "life-client.json", "draw-client.json", "life-keys.json"}
+        else 8192
+    )
     if (
         not path.is_file()
         or path.stat().st_size > limit
@@ -61,12 +65,18 @@ def atomic_write(path, raw, expected):
             os.unlink(name)
 
 
-def configure(web, life, proactive=None, *, approve=False):
+def configure(web, life, proactive=None, *, draw=None, approve=False):
     web, life = Path(web).absolute(), Path(life).absolute()
-    roots = [web, life] + ([Path(proactive).absolute()] if proactive is not None else [])
+    roots = (
+        [web, life]
+        + ([Path(proactive).absolute()] if proactive is not None else [])
+        + ([Path(draw).absolute()] if draw is not None else [])
+    )
     if len({os.path.normcase(str(p)) for p in roots}) != len(roots):
         raise ValueError("distinct_data_directories_required")
     pairs = [(web / "automation-keys.json", life / "web-client.json", "neko.life")]
+    if draw is not None:
+        pairs.append((Path(draw).absolute() / "life-keys.json", life / "draw-client.json", "neko.life"))
     if proactive is not None:
         pairs.append(
             (
@@ -91,7 +101,11 @@ def configure(web, life, proactive=None, *, approve=False):
             if len(value) >= 8:
                 raise ValueError("key_file_capacity")
             after = json.dumps({**value, identity: key}, indent=2).encode("utf-8")
-            if len(after) > (1024 if path.name in {"web-client.json", "life-client.json"} else 8192):
+            if len(after) > (
+                1024
+                if path.name in {"web-client.json", "life-client.json", "draw-client.json", "life-keys.json"}
+                else 8192
+            ):
                 raise ValueError("key_file_capacity")
             changes.append((path, before, after))
             report.append({"path": str(path), "action": "create" if before is None else "add_client"})
@@ -121,13 +135,18 @@ if __name__ == "__main__":
     parser.add_argument("--web-data-dir", required=True)
     parser.add_argument("--life-data-dir", required=True)
     parser.add_argument("--proactive-data-dir")
+    parser.add_argument("--draw-data-dir")
     parser.add_argument("--approve", action="store_true")
     args = parser.parse_args()
     try:
         print(
             json.dumps(
                 configure(
-                    args.web_data_dir, args.life_data_dir, args.proactive_data_dir, approve=args.approve
+                    args.web_data_dir,
+                    args.life_data_dir,
+                    args.proactive_data_dir,
+                    draw=args.draw_data_dir,
+                    approve=args.approve,
                 )
             )
         )

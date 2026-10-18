@@ -1,6 +1,7 @@
 """Isolated three-plugin protocol test. Requires adjacent source checkouts + SDK."""
 
 import importlib
+import asyncio
 from contextlib import AsyncExitStack
 import importlib.util
 import json
@@ -28,6 +29,63 @@ def package(name, directory):
 
 @unittest.skipUnless(AVAILABLE, "adjacent plugin snapshots and real SDK required")
 class EcosystemTests(unittest.IsolatedAsyncioTestCase):
+    @unittest.skipUnless(
+        (ROOT / "neko-draw/life_authorization.py").exists(), "adjacent updated draw source required"
+    )
+    async def test_life_scene_reaches_signed_draw_execution_once(self):
+        import time
+        from neko_life.drawing import draw_scene
+        from neko_life.store import Store
+        from maibot_sdk.context import PluginContext
+
+        module = package("ecosystem_life_draw", ROOT / "neko-draw")
+        async with AsyncExitStack() as cleanup:
+            directory = cleanup.enter_context(tempfile.TemporaryDirectory())
+            root = Path(directory)
+            for name in ["life", "draw"]:
+                (root / name).mkdir()
+            for file in [root / "life/draw-client.json", root / "draw/life-keys.json"]:
+                file.write_text(json.dumps({"neko.life": "ad" * 32}), encoding="utf-8")
+                file.chmod(0o600)
+
+            class Draw(module.NekoDraw):
+                config = module.PluginConfig()
+                ctx = types.SimpleNamespace(
+                    paths=types.SimpleNamespace(data_dir=str(root / "draw")), logger=Mock()
+                )
+
+            draw = Draw()
+            cleanup.push_async_callback(draw.on_unload)
+            draw.config.life.enabled = True
+            draw.config.life.sessions = ["chat"]
+            draw._generate = AsyncMock(return_value=(b"fake-image", "fake-provider"))
+            draw._send = AsyncMock()
+            store = Store(root / "life")
+            await store.call("open")
+            cleanup.push_async_callback(store.close)
+
+            async def call(capability, **kwargs):
+                self.assertEqual(kwargs["api_name"], "neko.draw.life_v1")
+                envelope = {"success": True, "result": await draw.life_v1(**kwargs["args"])}
+                return PluginContext._normalize_capability_result(capability, envelope)
+
+            ctx = types.SimpleNamespace(
+                paths=types.SimpleNamespace(data_dir=str(root / "life")), call_capability=call
+            )
+            snapshot = {
+                "day": "2026-10-18",
+                "snapshot_at": time.time(),
+                "current": {"start": 600, "summary": "窗边阅读"},
+            }
+            result = await draw_scene(ctx, store, "p", "chat", snapshot, 300)
+            self.assertEqual(result["status"], "submitted")
+            await asyncio.gather(*list(draw._runners.values()))
+            self.assertEqual(
+                (await draw_scene(ctx, store, "p", "chat", snapshot, 300))["status"], "deduplicated"
+            )
+            draw._generate.assert_awaited_once()
+            draw._send.assert_awaited_once()
+
     @unittest.skipUnless(
         (ROOT / "neko-draw/plugin.py").exists() and (ROOT / "neko-tts/history_visibility.py").exists(),
         "adjacent draw/TTS source snapshots required",

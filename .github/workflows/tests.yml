@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: znzsofficial/neko-draw
-          ref: 0d26502783f81dac53793102c29b55d4b1acb43b
+          ref: baa26c3103b0274e18bbadfb8979ace78410ce8b
           path: workspace/neko-draw
       - uses: actions/checkout@v7.0.1
         with:
@@ -42,6 +42,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e ".[test]"
       - run: python -m unittest discover -s tests -t . -q
+      - run: python -m unittest discover -q
+        working-directory: workspace/neko-draw
       - run: python -m ruff check .
       - run: python -m ruff format --check .
       - run: python scripts/build_release.py
