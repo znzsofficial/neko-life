@@ -13,6 +13,9 @@ class ShareError(ValueError):
     pass
 
 
+CLIENT_ID = "neko.proactive"
+
+
 def authenticate(packet, directory):
     try:
         path = Path(directory) / "sharing-keys.json"
@@ -24,7 +27,7 @@ def authenticate(packet, directory):
         ):
             raise ValueError
         keys = json.loads(path.read_text(encoding="utf-8"))
-        key = keys.get("attention-seeker-mai")
+        key = keys.get(CLIENT_ID)
         if not isinstance(key, str) or not re.fullmatch("[a-f0-9]{64}", key):
             raise ValueError
         if not isinstance(packet, dict) or set(packet) != {
@@ -41,7 +44,7 @@ def authenticate(packet, directory):
         if (
             type(packet["v"]) is not int
             or packet["v"] != 1
-            or packet["client"] != "attention-seeker-mai"
+            or packet["client"] != CLIENT_ID
             or packet["audience"] != "neko.life"
             or type(packet["issued"]) is not int
             or abs(time.time() - packet["issued"]) > 120

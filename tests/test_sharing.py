@@ -16,7 +16,7 @@ KEY = "bc" * 32
 def signed(operation, body):
     packet = {
         "v": 1,
-        "client": "attention-seeker-mai",
+        "client": "neko.proactive",
         "audience": "neko.life",
         "issued": int(time.time()),
         "nonce": uuid.uuid4().hex,
@@ -51,7 +51,7 @@ class SharingTests(unittest.IsolatedAsyncioTestCase):
     async def test_expired_submission_is_unknown_but_exact_late_ack_settles_once(self):
         candidate = await self.store.call("claim", "p", "chat")
         receipt = candidate["receipt_id"]
-        task = "proactive:attention-seeker-mai:1700000000000"
+        task = "proactive:neko.proactive:1700000000000"
         await self.store.call("receipt", "p", "chat", receipt, "submitted", task)
         self.now[0] += 181
         await self.store.call("cleanup")
@@ -63,7 +63,7 @@ class SharingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_signed_sharing_rejects_tampering_and_private_context_is_not_in_candidate(self):
         path = Path(self.temp.name) / "sharing-keys.json"
-        path.write_text(json.dumps({"attention-seeker-mai": KEY}), encoding="utf-8")
+        path.write_text(json.dumps({"neko.proactive": KEY}), encoding="utf-8")
         path.chmod(0o600)
         packet = signed("claim", {"session_id": "chat"})
         self.assertEqual(authenticate(packet, self.temp.name)[0], "claim")

@@ -82,7 +82,7 @@ def configure(web, life, proactive=None, *, draw=None, approve=False):
             (
                 life / "sharing-keys.json",
                 Path(proactive).absolute() / "life-client.json",
-                "attention-seeker-mai",
+                "neko.proactive",
             )
         )
     changes, report = [], []

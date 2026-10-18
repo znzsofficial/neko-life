@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AVAILABLE = (
     importlib.util.find_spec("maibot_sdk")
     and (ROOT / "neko-web/plugin.py").exists()
-    and (ROOT / "attention-seeker-mai/plugin.py").exists()
+    and (ROOT / "neko-proactive-mai/plugin.py").exists()
 )
 
 
@@ -129,7 +129,7 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
         from neko_life.models import ModelService
 
         web = package("ecosystem_web", ROOT / "neko-web")
-        proactive = package("ecosystem_proactive", ROOT / "attention-seeker-mai")
+        proactive = package("ecosystem_proactive", ROOT / "neko.proactive")
         async with AsyncExitStack() as cleanup:
             directory = cleanup.enter_context(tempfile.TemporaryDirectory())
             root = Path(directory)
@@ -139,8 +139,8 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             for file, payload in [
                 (root / "web/automation-keys.json", {"neko.life": key}),
                 (root / "life/web-client.json", {"neko.life": key}),
-                (root / "life/sharing-keys.json", {"attention-seeker-mai": share_key}),
-                (root / "proactive/life-client.json", {"attention-seeker-mai": share_key}),
+                (root / "life/sharing-keys.json", {"neko.proactive": share_key}),
+                (root / "proactive/life-client.json", {"neko.proactive": share_key}),
             ]:
                 file.write_text(json.dumps(payload), encoding="utf-8")
                 file.chmod(0o600)
@@ -245,7 +245,7 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
                 envelope = {"success": True, "result": await life.sharing_api(**kwargs["args"])}
                 return PluginContext._normalize_capability_result("api.call", envelope)
 
-            task = "proactive:attention-seeker-mai:1700000000000"
+            task = "proactive:neko.proactive:1700000000000"
 
             class Proactive(proactive.LonelyMaiPlugin):
                 config = proactive.LonelyMaiConfig()

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | MaiBot / SDK | ≥1.3.9 / ≥2.12，Python≥3.12 | 必需 |
 | neko-web | ≥1.6.1，已配置可用搜索来源 | 自主探索需要 |
-| attention-seeker-mai | ≥2.1.0，Life联动开关 | 主动分享需要 |
+| neko-proactive-mai | ≥2.1.0，Life联动开关 | 主动分享需要 |
 | neko-draw | ≥1.3.0签名配图API，普通生图/外貌记忆仍独立 | 自主环境插画需要 |
 | neko-tts / neko-video | 各自正常配置 | 可独立工作，不是Life加载依赖 |
 
@@ -23,7 +23,7 @@ Life不复制搜索/生图供应商密钥，不启动第二个主动聊天调度
 python scripts/configure_bridge.py \
   --web-data-dir /path/to/data/plugins/neko.web \
   --life-data-dir /path/to/data/plugins/neko.life \
-  --proactive-data-dir /path/to/data/plugins/attention-seeker-mai
+  --proactive-data-dir /path/to/data/plugins/neko-proactive-mai
 
 # 检查无误后，用同样参数加 --approve 才生成/配对。
 ```
@@ -35,7 +35,7 @@ python scripts/configure_bridge.py \
 生成的对应关系：
 
 - Web的`automation-keys.json`与Life的`web-client.json`：`neko.life`客户端能力密钥。
-- Life的`sharing-keys.json`与主动插件的`life-client.json`：`attention-seeker-mai`客户端能力密钥。
+- Life的`sharing-keys.json`与主动插件的`life-client.json`：`neko-proactive-mai`客户端能力密钥。
 
 两组密钥独立；它们不是供应商API Key。脚本只打印文件路径和操作，不打印密钥。
 不要手工复用一组密钥，不要在Issue、截图或聊天中粘贴其内容。

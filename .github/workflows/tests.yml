@@ -24,9 +24,9 @@ jobs:
           path: workspace/neko-web
       - uses: actions/checkout@v7.0.1
         with:
-          repository: znzsofficial/attention-seeker-mai
-          ref: 969a8f8be0fd51e8534e2514371ead92248b20f2
-          path: workspace/attention-seeker-mai
+          repository: znzsofficial/neko-proactive-mai
+          ref: 4f821d43d2333162b1b13c7cbcae685a8e21ad45
+          path: workspace/neko-proactive-mai
       - uses: actions/checkout@v7.0.1
         with:
           repository: znzsofficial/neko-draw

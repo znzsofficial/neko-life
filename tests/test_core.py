@@ -158,7 +158,7 @@ class StoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(candidate)
         self.assertIsNone(await self.store.call("claim", "p", "chat"))
         key = candidate["receipt_id"]
-        task = "proactive:attention-seeker-mai:1700000000000"
+        task = "proactive:neko.proactive:1700000000000"
         with self.assertRaisesRegex(StoreError, "unattributed_delivery"):
             await self.store.call("receipt", "p", "chat", key, "sent", task)
         await self.store.call("receipt", "p", "chat", key, "submitted", task)

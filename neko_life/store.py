@@ -478,7 +478,7 @@ class Store:
         if status in {"submitted", "sent"}:
             if (
                 not isinstance(host_task, str)
-                or not host_task.startswith("proactive:attention-seeker-mai:")
+                or not host_task.startswith(("proactive:neko.proactive:", "proactive:attention-seeker-mai:"))
                 or len(host_task) > 160
             ):
                 raise StoreError("invalid_host_task")

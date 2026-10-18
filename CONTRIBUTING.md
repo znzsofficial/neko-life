@@ -13,7 +13,7 @@ python scripts/build_release.py
 
 Tests must use synthetic data and fake providers/QQ/model calls. Do not add a
 live access key, browser state or production data fixture. Optional ecosystem
-tests need adjacent neko-web, attention-seeker-mai, neko-draw and neko-tts source
+tests need adjacent neko-web, neko-proactive-mai, neko-draw and neko-tts source
 directories; CI declares the pinned versions. A skip is not integration proof.
 
 Preserve fail-closed credential/database behavior, replay protection, existing

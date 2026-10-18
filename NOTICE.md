@@ -10,7 +10,7 @@ from [octmicy/Mai_life](https://github.com/octmicy/Mai_life) at
 separate implementation with different scope, state schema and integration
 boundaries; no upstream runtime database or configuration is distributed.
 
-Neko Web, Neko Draw, Neko TTS and attention-seeker-mai remain separate projects
+Neko Web, Neko Draw, Neko TTS and neko-proactive-mai remain separate projects
 with their own licenses. Cross-plugin integration uses versioned APIs; the
 release does not bundle their sources. Optional integration tests check out
 fixed public revisions without copying private plugin runtime data.
