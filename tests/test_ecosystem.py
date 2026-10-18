@@ -1,6 +1,7 @@
 """Isolated three-plugin protocol test. Requires adjacent source checkouts + SDK."""
 
 import importlib
+from contextlib import AsyncExitStack
 import importlib.util
 import json
 from pathlib import Path
@@ -71,7 +72,8 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
 
         web = package("ecosystem_web", ROOT / "neko-web")
         proactive = package("ecosystem_proactive", ROOT / "attention-seeker-mai")
-        with tempfile.TemporaryDirectory() as directory:
+        async with AsyncExitStack() as cleanup:
+            directory = cleanup.enter_context(tempfile.TemporaryDirectory())
             root = Path(directory)
             for name in ["web", "life", "proactive"]:
                 (root / name).mkdir()
@@ -104,8 +106,8 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             w.config.automation.enabled = True
             await w.on_load()
             await life.on_load()
-            self.addAsyncCleanup(w.on_unload)
-            self.addAsyncCleanup(life.on_unload)
+            cleanup.push_async_callback(w.on_unload)
+            cleanup.push_async_callback(life.on_unload)
 
             async def fake_retrieval(kind, arguments):
                 if kind == "search":

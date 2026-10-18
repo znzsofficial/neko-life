@@ -1,69 +1,71 @@
-# Validation boundaries (2026-10-18)
+# Release verification and boundaries
 
-The complete OpenChamber plan is not yet finished. This is an enabled 0.2
-delivery with explicit evidence boundaries, not an assertion that every route
-has been exercised in production.
+## Supported release contract
 
-- Installed host: MaiBot 1.3.9 / SDK 2.12.0. Real PluginManifest,
-  WebUIExtension and Context Items deserialize/serialize checks pass.
-- Isolated three-plugin research/receipt tests use synthetic web results,
-  fake model responses, actual SDK API-envelope normalization and fake send
-  acknowledgements. They do not call providers or QQ.
-- Real Life activation and private authenticated workspace status query pass;
-  the main MaiBot process remained unchanged. Plugin Runner reloads did occur.
-- Real first schedule model call reported 1055 input / 2458 output despite a
-  requested 1000-token output. The first ledger froze safely. After explicit
-  reviewed reconciliation with a full database backup, usage stayed charged
-  against the original daily 8000 envelope. No budget limits were raised.
-- A real capability signature reached Web, and a model-selected exploration
-  round chose to skip. No source note exists from that round. Do not forcibly
-  reset its interval/counters or send QQ merely to manufacture success evidence.
-- Original proactive target/probability/window/intent settings and all other
-  plugin configuration sections were hash/semantic checked. Only new bridge
-  sections and new Life configuration were introduced.
-- The operator approved enabling exploration and existing-target sharing and
-  accepted loss of in-memory cooldown on source reload. This did not authorize
-  autonomous drawings or a new public repository.
-- Browser visual verification is blocked by the host login screen; schema and
-  live query validation are not desktop/mobile screenshot approval. Mechanical
-  declarative-source design check reports no findings.
+Neko Life 0.3 is the first public release of the implemented research, schedule,
+context, management and optional sharing integration. "Release complete" does
+not mean every future provider response or QQ client has been demonstrated.
 
-Remaining natural-use checks: ongoing autonomous topic quality, exact QQ/TTS
-delivery attribution and independently authorized autonomous drawing. Success
-on an explicit administrator research request does not prove an autonomous
-selection or message delivery. Unknown receipts must stay unknown.
+Autonomous drawing is deliberately excluded by the approved safety gate: the
+supported host does not give the drawing tool enough trusted origin evidence
+to distinguish an explicit request from an unrequested life suggestion. Only
+explicit-request scene context is supported; no autonomous-image switch or
+background spend path is advertised.
 
-## Subsequent authorized progress
+Sharing has exact success and conservative unknown paths. A host submission is
+not a delivery. Without an exact task/session success acknowledgement, it stays
+unknown and is not automatically replayed. This is verified behavior, not an
+unimplemented promise to infer delivery from ordinary chat content.
 
-The operator explicitly requested disabling cost limits and continuing remaining
-work. All six Life daily cost limits and both Web daily limits were set to zero
-(unlimited), while concurrency, request bounds, failures/unknown-work guards,
-dedupe and chat cooldown remain. Ledger history was not cleared. The new release
-supports configurable intervals without silently changing the live two-hour
-automatic cadence.
+## Evidence
 
-An explicit administrator exploration successfully searched Exa, read two NASA
-official pages through the protected public downloader, and saved one note with
-body-vs-snippet provenance. This proves the live retrieval-to-note path, not an
-autonomously chosen topic or a QQ delivery. Further sources remained snippets.
-Desktop (1440px) and mobile (390px) management pages were checked at both top
-and bottom using a temporary SSH forward and private in-memory login. No token,
-cookie state or login screenshot was exported. Both viewports have document
-width equal to viewport width. English statuses/raw quota JSON were replaced
-with readable labels; long notes were changed from cramped table columns to
-full-width paragraphs. The host's existing mobile navigation/live-activity
-overlay can transiently cover the bottom edge; this plugin does not replace it.
-Screenshots stay in the approved local temporary directory, not source/Git.
+- Baseline host: MaiBot 1.3.9 / SDK 2.12. Real manifest, declarative workspace and
+  image plus function-call/output Context Items serialization checks pass.
+- Six-plugin isolated preflight passes: Web108 / Life56 / proactive24 / draw53 /
+  TTS63 / video45 = 349 tests. Providers, model calls and send receipts use fake
+  services and synthetic media; no paid test or QQ message is emitted.
+- The public CI matrix requires Python 3.12 and 3.14 on Linux and Windows,
+  SDK-backed integration tests with pinned adjacent plugin sources, Ruff checks
+  and an allowlisted release build. Missing integration checkouts are explicit
+  skips, not evidence of compatibility.
+- An initial Windows run detected temporary directory cleanup before SQLite
+  closure. The fixture now uses an async exit stack so databases close before
+  the directory is removed; neither Windows nor the failed assertion is skipped.
+- Real approved research searched Exa, read two NASA official pages and saved
+  one source-bound note. Other results remained snippets. That round used an
+  administrator's topic, not an autonomously selected topic or QQ delivery.
+- Live signed bridge requests, original plugin settings and a private workspace
+  query were checked. The main host process stayed unchanged; Runner reloads
+  did occur. Unknown sharing state is retained rather than relabeled as sent.
+- The operator disabled all six Life and two Web daily cost limits. Ledger
+  history remains, and concurrency, size/time bounds, dedupe and chat policy are
+  separate from cost budgets. Positive budgets remain available for new users.
+- Desktop1440 and mobile390 workspace top/bottom views were inspected. Long notes
+  use full-width text and the document fits each viewport. The host's own mobile
+  activity bubble can transiently cover its bottom edge; host UI is not replaced.
+  Temporary screenshots and private login state are not public release assets.
 
-Regression: Web108 / Life44 / proactive24 pass with actual SDK 2.12, including
-disabled-cost accounting, preserved queues/intervals, terminal result eviction
-without duplicate execution, midnight/DST/offline idempotency, and real Host
-image plus tool-call/output serialization roundtrip. Rapid completed SQLite
-work exposed a false pending-queue count; fixed by exactly-once release on
-completion, not by increasing the queue limit or removing the test.
+## Security and reproducibility
 
-Rollback order: disable Life and the proactive Life bridge, retain all new
-databases/outbox/keys, then restore matched service versions and their earlier
-configuration using verified backup/update procedures. Unknown jobs must not be
-replayed after rollback. A restore has not been deliberately induced against
-the active chat service as a test.
+The working tree, all reachable Git objects and ZIP were checked against the
+live deployment's key/token material without printing or storing that material.
+Runtime configuration, capability keys, SQLite files, private chat and operator
+screenshots are excluded. Source provenance, MIT notices, an explicit pairing
+script, public install instructions and reporting guidance are included.
+
+ZIP membership is allowlisted and metadata fixed; two builds in the same
+environment produce identical bytes. Asset SHA256 must match the published
+checksums and hosting-service digest before announcing the release.
+
+## Operations
+
+Back up source, configuration, capability keys and a consistent SQLite snapshot
+before upgrading. Disable Life/its sharing client before rolling back matched
+versions, retain unknown-job/outbox evidence and do not replay uncertain work.
+Do not let an older plugin open an unknown database schema. A rollback is not
+deliberately induced against active chat merely to manufacture test evidence.
+
+Natural use remains important: provider drift, model-generated note accuracy,
+QQ/TTS rendering and exact receipt availability cannot be guaranteed by mocks.
+Treat contradictory user feedback or diagnostics as evidence to investigate,
+not as a reason to erase history or turn an unknown result into success.
