@@ -42,7 +42,7 @@ python scripts/configure_bridge.py \
 
 自主配图另加`--draw-data-dir /path/to/data/plugins/neko.draw`，先预览、再加`--approve`。
 将生成**第三组独立能力密钥**：Draw的`life-keys.json`与Life的`draw-client.json`。
-Life配置`drawing.enabled=true`及`drawing.sessions`；Draw配置`life.enabled=true`及`life.sessions`，
+Life配置`drawing.enabled=true`及`drawing.group_ids`/`drawing.user_ids`（或高级`drawing.sessions`）；Draw配置`life.enabled=true`及`life.sessions`，
 仅双方会话名单的交集可执行。不更改普通生图工具或供应商配置；空名单默认拒绝。
 允许会话同时开启Life背景后，Planner会看到可选配图指引，不强制触发。
 
@@ -50,11 +50,15 @@ Life配置`drawing.enabled=true`及`drawing.sessions`；Draw配置`life.enabled=
 
 1. 先确认现有neko-web交互搜索可用，检查供应商计费；开启其`automation.enabled`。
 2. Life配置公开兴趣、禁区及模型任务名，按需开启`models.enabled`、`explore.enabled`，最后开启总开关。
-3. 需要聊天背景时开启`context.enabled`，填写宿主真实会话ID；空列表不注入。QQ号不是会话ID，不猜测前缀。
+3. 需要聊天背景时开启`context.enabled`，填`context.group_ids`群号/`context.user_ids`私聊QQ号；高级`context.sessions`仅填宿主真实会话ID。三份列表都空不注入。
 4. 需要主动分享时，Life开启`sharing.enabled`及允许会话，主动插件开启`life.enabled`；目标仍必须在其原白名单中。
 5. 只开探索不会自动授权画图。`context.drawing_context`仅增强明确请求；自主环境插画需要上面的第三组配对/双方独立开关。自画像继续先查外貌记忆。
 
 新安装默认关闭所有新行为；示例、能力配对和Release解压都不等于自动启用。
+三种功能各自有`group_ids`、`user_ids`，不能互相授权；与旧`sessions`取并集，撤权需同时移除对应旧ID。
+号码只通过`chat.get_stream_by_group_id` / `chat.get_stream_by_user_id`以`platform="qq"`查询已有会话，
+不创建会话。每组每类最多16项、总时限2秒，不跨请求缓存；工作区显示最近核验状态。
+多路由只匹配宿主lookup返回的已有会话，其他路由用经管理员核验的高级ID。详见[迁移边界](../README.md#群号--qq号与旧配置迁移)。
 
 ## 预算与保护
 

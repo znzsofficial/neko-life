@@ -16,6 +16,14 @@ class ConfigurationCopyTests(unittest.TestCase):
         self.assertFalse(cfg.plugin.enabled)
         self.assertFalse(cfg.drawing.enabled)
         self.assertEqual(cfg.budget.rounds, 3)
+        for section in ("context", "sharing", "drawing"):
+            value = getattr(cfg, section)
+            self.assertEqual(value.group_ids, [])
+            self.assertEqual(value.user_ids, [])
+            self.assertEqual(value.sessions, [])
+            self.assertIn("高级", type(value).model_fields["sessions"].json_schema_extra["label"])
+        self.assertIn("允许的QQ群号", schema)
+        self.assertIn("允许私聊的QQ号", schema)
         for section in ["plugin", "explore", "models", "context", "sharing", "drawing", "budget", "memory"]:
             model = type(getattr(cfg, section))
             self.assertTrue(any("\u4e00" <= c <= "\u9fff" for c in model.__ui_label__))

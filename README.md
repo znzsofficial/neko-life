@@ -37,7 +37,7 @@ MaiBot插件：在批准的公开兴趣中自主选题，搜索、阅读、留�
 2. 解压到宿主`plugins/neko-life/`，根目录应同时包含`plugin.py`、`_manifest.json`及`neko_life/`。
 3. 在WebUI检查配置。**新安装默认关闭**，管理员名单为空时拒绝管理命令。
 4. 需要自主上网时，按[协作指南](docs/integration.md)显式配对能力密钥，再分别开启Web后台接口和Life探索。
-5. 根据需要允许特定会话的背景和主动分享，不要把QQ号当宿主会话ID。
+5. 在聊天背景、主动分享、自主配图各组分别填QQ群号或私聊QQ号；已有宿主会话ID仍放在“高级”字段。
 
 插件ID为`neko.life`。配置和`life.db`存于宿主分配的独立data_dir，不在源码中。
 配对脚本默认只预览，已有正确凭据不轮换，不输出密钥，也不会自动开启任何功能。
@@ -46,7 +46,8 @@ MaiBot插件：在批准的公开兴趣中自主选题，搜索、阅读、留�
 
 0.4.1起，设置页按探索、聊天背景、主动分享、自主配图、后台模型和每日用量显示中文分组/字段名。
 时间是北京时间24小时制；探索间隔单位是分钟，配图间隔是秒（1800秒=30分钟）。每日用量填0为不限。
-“哪些聊天”填写宿主会话ID，不是QQ号/群号；已配好的名单通常不用改。下表保留配置键方便对照文件。
+0.4.3起可直接填QQ群号/私聊QQ号；三种功能独立授权，原有`sessions`保留为高级兼容且继续生效。
+号码只通过宿主已有QQ会话查询核验，不创建会话、不猜ID。下表保留配置键方便对照文件。
 
 | 配置 | 含义 |
 | --- | --- |
@@ -54,13 +55,36 @@ MaiBot插件：在批准的公开兴趣中自主选题，搜索、阅读、留�
 | `models.enabled / task` | 允许额外模型调用；task是宿主任务名，默认utils |
 | `explore.enabled / interests / exclusions` | 是否自主探索、批准的公开兴趣和禁区；兴趣为空不探索 |
 | `explore.start / end / interval_minutes` | 默认09:00–23:00、每120分钟；起止相同为关闭时窗，间隔最少5分钟 |
-| `context.enabled / sessions` | 允许会话的相关短背景，空名单不注入 |
-| `sharing.enabled / sessions` | 允许会话的公开分享候选，仍须通过原主动白名单和调度规则 |
+| `context.enabled / group_ids / user_ids / sessions` | 聊天背景与近期笔记；三份名单都空不注入 |
+| `sharing.enabled / group_ids / user_ids / sessions` | 公开分享候选，仍须通过原主动白名单和调度规则 |
 | `context.drawing_context` | 仅补充明确绘图请求的角色场景，不授权自主画图 |
-| `drawing.enabled / sessions` | 独立授权Planner自主配生活环境插画；需生图端也授权并配对密钥 |
+| `drawing.enabled / group_ids / user_ids / sessions` | 独立授权Planner自主配生活环境插画；Draw侧`life.sessions`仍须授权同一宿主会话并配对密钥 |
 | `drawing.cooldown_seconds` | 持久防刷屏间隔，默认1800秒、最少300秒；不设每日生图成本上限 |
 | `memory.dreams / diary` | 可选虚构片段，默认关闭，使用统一模型预算 |
 | `admin_users` | 私聊管理QQ白名单，空名单拒绝 |
+
+### 群号 / QQ号与旧配置迁移
+
+`context`、`sharing`、`drawing`每组均新增`group_ids`（QQ群）和`user_ids`（仅私聊）两项字符串列表。
+例如`group_ids = ["123456789"]`；每项纯ASCII数字、无空格/前导零/`qq:`，每类最多16项。
+相同号码分别填群/私聊字段不会相互授权；只支持QQ平台。各组的`enabled`和总开关仍须开启。
+
+- **升级不必迁移**：新字段默认空，原`sessions`完整保留且仍按精确ID授权，不额外要求旧ID能被查询。
+- **号码与旧ID取并集**，不是覆盖：先通过宿主只读查询确认号码对应的已有会话，再由管理员按需删除该组旧ID。
+  撤权须删除该功能所有对应号码和旧ID；只删号码但保留旧ID仍有效。不会自动改写其他功能或现场配置。
+- 只查已有会话，未联系过/未载入的目标、接口异常、格式/类型/平台矛盾、超时均拒绝。
+  可在已有聊天收到新请求后重试；不要使用`chat.open_session`补建。多账号/多scope时接口只返回首个匹配会话，
+  不会自动放行其他路由；需要其他路由时用经过管理员核验的高级`sessions`。
+- Draw仍双侧授权：Life的`drawing.group_ids`不替代Draw的`life.sessions`，也不会开启Draw开关、轮换密钥或花费生图额度。
+  主动分享仍受主动插件目标、概率、时间窗与冷却限制；没有新调度器。
+- 每次请求重读当前授权、不跨请求缓存；每组最多32次只读lookup、总时限2秒；同一次背景构造可复用相同目标查询。
+  热更上述权限字段不会重建日程任务；已提交的外部任务不能撤回，未知任务仍不重放。日预算`0=不限`保持不变。
+- 工作区“聊天授权核验”和私有`status_v1.authorization`显示各功能最近一次核验结果（不是全名单预检）。
+  `lookup_unavailable_or_invalid`表示宿主无已有会话/查询不可用/返回矛盾，`lookup_timeout`表示超时；
+  `invalid_qq_target`表示格式/数量错误，`configuration_changed`表示查询期间撤权。
+  状态不输出QQ号、会话ID、查询响应正文或密钥。
+
+本次仅使用合成数据/真实SDK代理做离线测试，不代表线上目标已解析或QQ投递已验收；真实配置由部署管理员单独迁移。
 
 ### Token充裕时，可以关闭日成本预算
 
@@ -117,14 +141,16 @@ MaiBot插件：在批准的公开兴趣中自主选题，搜索、阅读、留�
 
 ```bash
 python -m pip install -e ".[test]"
-python -m unittest discover -s tests -t . -q
+python scripts/test_suite.py
 python -m ruff check .
 python -m ruff format --check .
 python scripts/build_release.py
 ```
 
 模块按存储、预算、模型路由、探索、日程、背景、能力桥和SDK接入分离。测试使用合成数据和假服务，
-不登录账号、不调用真实模型或QQ。生态组合测试需要相邻源码目录，CI显式检出固定版本；缺失时明确skip，不当作已验证。
+不登录账号、不调用真实模型或QQ。生态组合测试需要相邻源码目录，CI显式检出固定SHA；不得借用相邻最新开发分支。
+CI为Linux/Windows × Python3.12/3.14 × SDK2.12.0/最新2.x共8档；`test_suite.py`检查发现数量并禁止任何skip。
+本地可用`NEKO_LIFE_ECOSYSTEM_ROOT`指定按同一固定SHA导出的四个插件快照目录。普通unittest可显示skip，但不能当完整验证。
 Release使用文件允许列表及固定ZIP元数据，可重复构建，不包含配置、数据库、能力密钥或截图。
 
 MIT许可。设计借鉴与来源说明见[NOTICE](NOTICE.md)，插件间协议见[protocol.md](docs/protocol.md)。

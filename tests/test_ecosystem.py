@@ -5,6 +5,7 @@ import asyncio
 from contextlib import AsyncExitStack
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -12,7 +13,7 @@ import types
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("NEKO_LIFE_ECOSYSTEM_ROOT", Path(__file__).resolve().parents[2]))
 AVAILABLE = (
     importlib.util.find_spec("maibot_sdk")
     and (ROOT / "neko-web/plugin.py").exists()
@@ -83,6 +84,31 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 (await draw_scene(ctx, store, "p", "chat", snapshot, 300))["status"], "deduplicated"
             )
+            draw._generate.assert_awaited_once()
+            draw._send.assert_awaited_once()
+
+            # Life's friendly QQ allowlist cannot replace Draw's own session grant.
+            from neko_life.config import Settings
+            from neko_life.plugin import NekoLifePlugin
+            from tests.test_authorization import stream
+
+            life_context = ctx
+
+            class Life(NekoLifePlugin):
+                config = Settings()
+                ctx = life_context
+
+            life = Life()
+            ctx.chat = types.SimpleNamespace(
+                get_stream_by_group_id=AsyncMock(return_value=stream(sid="denied"))
+            )
+            life.config.plugin.enabled = True
+            life.config.drawing.enabled = True
+            life.config.drawing.group_ids = ["123"]
+            life.store, life.persona, life.snapshot = store, "p", snapshot
+            denied = await life.draw_scene_tool(session_id="denied")
+            self.assertEqual(denied["status"], "session_denied")
+            self.assertEqual(life.authorization_status["drawing"], "qq_target")
             draw._generate.assert_awaited_once()
             draw._send.assert_awaited_once()
 
@@ -236,7 +262,12 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await explorer.run(), "saved")
             life.config.plugin.enabled = True
             life.config.sharing.enabled = True
-            life.config.sharing.sessions = ["chat"]
+            from tests.test_authorization import stream
+
+            life.config.sharing.group_ids = ["123"]
+            life.ctx.chat = types.SimpleNamespace(
+                get_stream_by_group_id=AsyncMock(return_value=stream(sid="chat"))
+            )
 
             async def share_call(capability, **kwargs):
                 self.assertEqual(kwargs["api_name"], "neko.life.sharing_v1")
@@ -278,3 +309,7 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             await bot.life_after_send(message={"session_id": "chat"}, reply_message_id=task, sent=True)
             self.assertEqual(bot._life._read()[receipt]["status"], "sent")
             self.assertIsNone(await life.store.call("claim", life.persona, "chat"))
+            life.config.sharing.group_ids.clear()
+            # A fresh authenticated caller is denied immediately after revocation.
+            with self.assertRaisesRegex(ValueError, "life_unavailable"):
+                await bot._life.claim("chat")

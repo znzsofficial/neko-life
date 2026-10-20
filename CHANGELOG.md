@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3 — QQ targets with independent permissions
+
+- 聊天背景、主动分享、自主配图各增`group_ids`与`user_ids`，中文Schema提示清晰；旧`sessions`高级兼容授权不变。
+- 宿主只读lookup核验已有QQ会话，不猜编码/新建会话；群私分离、限量/限时、异常拒绝，核验状态可见且不回显身份/响应/密钥。
+- 统一三功能权限检查，不跨请求缓存，权限热更不重建日程；保留主动策略、冷却、预算0语义与Draw双侧授权。
+- CI加入最低SDK2.12.0/最新2.x，扩至8档；发现数量与关键skip保护，生态依赖继续固定SHA；纯离线回归，不冒充线上验收。
+
 ## 0.4.2 — Show recent notes in tool output
 
 - `neko_life_recent` 的可见 `content` 现在包含近期笔记摘要、观点和最多两个来源链接；结构化 `notes` 返回保持不变。

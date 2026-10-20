@@ -13,6 +13,7 @@
     "content": [
       {"type": "text", "label": "运行状态", "value": {"source": "status", "field": "state_label"}},
       {"type": "text", "label": "最近错误（未发生则无）", "value": {"source": "status", "field": "error_label"}},
+      {"type": "text", "label": "聊天授权核验（仅最近请求，不是全量预检）", "value": {"source": "status", "field": "authorization_label"}},
       {"type": "text", "label": "最近跳过原因", "value": {"source": "status", "field": "skip_label"}},
       {"type": "text", "label": "最近尝试", "value": {"source": "status", "field": "attempt_label"}},
       {"type": "text", "label": "最近保存笔记", "value": {"source": "status", "field": "success_label"}},

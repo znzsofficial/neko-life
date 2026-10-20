@@ -84,7 +84,24 @@ class ModelSettings(PluginConfigBase):
     )
 
 
-class ContextSettings(PluginConfigBase):
+class ChatTargets(PluginConfigBase):
+    """三种功能各自授权；旧会话 ID 与新号码取并集，不会自动迁移。"""
+
+    group_ids: list[str] = Field(
+        default_factory=list,
+        max_length=16,
+        description="每项填一个QQ群号（纯数字，最多16项）。仅匹配宿主已有群会话；不创建会话。与高级会话ID取并集，撤权须同时移除旧ID。",
+        json_schema_extra=ui("允许的QQ群号", placeholder="123456789"),
+    )
+    user_ids: list[str] = Field(
+        default_factory=list,
+        max_length=16,
+        description="每项填一个私聊QQ号（纯数字，最多16项）。不授权该用户所在的群；群号与QQ号即使相同也不混用。解析失败拒绝授权，见管理状态。",
+        json_schema_extra=ui("允许私聊的QQ号", placeholder="123456789"),
+    )
+
+
+class ContextSettings(ChatTargets):
     """聊天时让她知道自己在做什么、最近看过什么；不会主动发消息。"""
 
     __ui_label__ = "聊天里用到生活见闻"
@@ -96,8 +113,8 @@ class ContextSettings(PluginConfigBase):
     )
     sessions: list[str] = Field(
         default_factory=list,
-        description="留空则所有聊天都不注入。填宿主会话ID，不是QQ号或群号；已有值通常不用改。",
-        json_schema_extra=ui("哪些聊天可以使用"),
+        description="高级兼容：仅填宿主会话ID，不是QQ号/群号。与上面的号码取并集；已有授权保留。三项都空才不注入，撤权需移除所有对应项。",
+        json_schema_extra=ui("高级：允许的宿主会话ID"),
     )
     drawing_context: bool = Field(
         default=False,
@@ -149,7 +166,7 @@ class BudgetSettings(PluginConfigBase):
     )
 
 
-class SharingSettings(PluginConfigBase):
+class SharingSettings(ChatTargets):
     """通过原主动聊天插件择机分享，不另起发言定时器，不改变原概率和冷却。"""
 
     __ui_label__ = "主动分享见闻"
@@ -161,12 +178,12 @@ class SharingSettings(PluginConfigBase):
     )
     sessions: list[str] = Field(
         default_factory=list,
-        description="填已有宿主会话ID，留空不分享。还须通过原主动插件的目标、时段、概率和冷却检查。",
-        json_schema_extra=ui("可以分享到哪些聊天"),
+        description="高级兼容：已有宿主会话ID，与上面的号码取并集。三项都空不分享；还须通过原主动插件目标、时段、概率和冷却检查。",
+        json_schema_extra=ui("高级：允许分享的宿主会话ID"),
     )
 
 
-class DrawingSettings(PluginConfigBase):
+class DrawingSettings(ChatTargets):
     """允许她择机画当前生活环境，不画人物；不是每轮探索都出图。"""
 
     __ui_label__ = "自主配生活插画"
@@ -178,8 +195,8 @@ class DrawingSettings(PluginConfigBase):
     )
     sessions: list[str] = Field(
         default_factory=list,
-        description="填已有宿主会话ID，留空不配图；生图插件也必须允许同一会话。",
-        json_schema_extra=ui("可以在哪些聊天配图"),
+        description="高级兼容：已有宿主会话ID，与上面的号码取并集。三项都空不配图；Draw侧life.sessions仍须独立授权同一宿主会话，填Life群号不能绕过。",
+        json_schema_extra=ui("高级：允许配图的宿主会话ID"),
     )
     cooldown_seconds: int = Field(
         default=1800,

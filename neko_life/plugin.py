@@ -23,6 +23,7 @@ from .schedule import Schedule, minute
 from .store import Store
 from .sharing import authenticate
 from .drawing import draw_scene
+from .authorization import authorize, targets, explanation
 
 
 class NekoLifePlugin(MaiBotPlugin):
@@ -41,6 +42,27 @@ class NekoLifePlugin(MaiBotPlugin):
         self.clear_confirmation = None
         self.exploration_lock = asyncio.Lock()
         self.manual_task = None
+        self.authorization_status = {}
+        self.runtime_settings = None
+
+    def _runtime_settings(self):
+        # Permission-only reloads must not rebuild the schedule or reset tasks.
+        return self.config.model_dump(exclude={"context", "sharing", "drawing", "admin_users"})
+
+    def _policy_current(self, purpose, policy):
+        current = getattr(self.config, purpose)
+        return self.config.plugin.enabled and current.enabled and targets(current) == policy
+
+    async def _authorized(self, purpose, session, resolved=None):
+        settings = getattr(self.config, purpose)
+        if not self.config.plugin.enabled or not settings.enabled:
+            return False
+        policy = targets(settings)
+        allowed, reason = await authorize(self.ctx, session, policy, resolved)
+        if not self._policy_current(purpose, policy):
+            allowed, reason = False, "configuration_changed"
+        self.authorization_status[purpose] = reason
+        return allowed
 
     async def on_load(self):
         async with self.lifecycle:
@@ -48,6 +70,7 @@ class NekoLifePlugin(MaiBotPlugin):
         self.ctx.logger.info("Neko Life 已加载")
 
     async def _open(self):
+        self.runtime_settings = self._runtime_settings()
         self.snapshot, self.notes, self.error = None, [], ""
         self.clear_confirmation = None
         self.persona = ""
@@ -96,8 +119,11 @@ class NekoLifePlugin(MaiBotPlugin):
             await self._close()
 
     async def on_config_update(self, scope, config_data, version):
-        del scope, config_data, version
+        del config_data, version
         async with self.lifecycle:
+            if scope == "self" and self.runtime_settings == self._runtime_settings():
+                self.authorization_status.clear()
+                return
             await self._close()
             await self._open()
 
@@ -169,19 +195,17 @@ class NekoLifePlugin(MaiBotPlugin):
                     pass
             await asyncio.sleep(60)
 
-    def _context(self, kwargs, limit):
+    async def _context(self, kwargs, limit):
         session = kwargs.get("session_id")
-        if (
-            not self.config.plugin.enabled
-            or not self.config.context.enabled
-            or session not in self.config.context.sessions
-        ):
+        resolved = {}
+        if not await self._authorized("context", session, resolved):
             return ""
+        context_policy = targets(self.config.context)
         if not self.snapshot or datetime.now().timestamp() - self.snapshot["snapshot_at"] > 900:
             return ""
         text = latest_text(kwargs.get("items"))
         result = background(self.snapshot, self.notes, text, limit)
-        if self.config.drawing.enabled and session in self.config.drawing.sessions:
+        if await self._authorized("drawing", session, resolved):
             hint = (
                 "\n已授权按需用neko_life_draw_scene自主配生活环境插画，可不画。禁止绕过此工具重复出图。"
                 "本工具不画人物；自画像仍先query_memory再用neko_draw。"
@@ -196,6 +220,8 @@ class NekoLifePlugin(MaiBotPlugin):
                 + "。自画像仍先query_memory查询外貌，再用neko_draw；生成图不是实拍证据。本背景不授权自主配图。"
             )
             result = result[: max(0, limit - len(drawing))] + drawing
+        if not self._policy_current("context", context_policy):
+            return ""
         return result[:limit]
 
     @Tool(
@@ -205,16 +231,13 @@ class NekoLifePlugin(MaiBotPlugin):
     async def draw_scene_tool(self, **kwargs):
         session = kwargs.get("session_id") or kwargs.get("stream_id") or ""
         async with self.lifecycle:
-            if (
-                not self.config.plugin.enabled
-                or not self.config.drawing.enabled
-                or session not in self.config.drawing.sessions
-                or not self.store
-                or not self.persona
-            ):
+            if not await self._authorized("drawing", session) or not self.store or not self.persona:
                 return {"success": False, "status": "not_authorized"}
+            policy = targets(self.config.drawing)
             if await self.store.call("get", self.persona, "paused", False):
                 return {"success": False, "status": "paused"}
+            if not self._policy_current("drawing", policy):
+                return {"success": False, "status": "not_authorized"}
             try:
                 return await draw_scene(
                     self.ctx,
@@ -223,6 +246,7 @@ class NekoLifePlugin(MaiBotPlugin):
                     session,
                     self.snapshot,
                     self.config.drawing.cooldown_seconds,
+                    authorized=lambda: self._policy_current("drawing", policy),
                 )
             except Exception:
                 return {"success": False, "status": "drawing_unavailable"}
@@ -235,7 +259,7 @@ class NekoLifePlugin(MaiBotPlugin):
         error_policy=ErrorPolicy.SKIP,
     )
     async def planner_context(self, **kwargs):
-        text = self._context(kwargs, 600)
+        text = await self._context(kwargs, 600)
         if text:
             return {
                 "action": "continue",
@@ -251,7 +275,7 @@ class NekoLifePlugin(MaiBotPlugin):
         error_policy=ErrorPolicy.SKIP,
     )
     async def replyer_context(self, **kwargs):
-        text = self._context(kwargs, 300)
+        text = await self._context(kwargs, 300)
         if text:
             return {
                 "action": "continue",
@@ -262,18 +286,17 @@ class NekoLifePlugin(MaiBotPlugin):
     @Tool("neko_life_recent", description="查看近期公开见闻和来源，仅限已允许的聊天。")
     async def recent(self, **kwargs):
         session = kwargs.get("session_id") or kwargs.get("stream_id") or ""
-        if (
-            not self.config.plugin.enabled
-            or not self.config.context.enabled
-            or session not in self.config.context.sessions
-        ):
+        if not await self._authorized("context", session):
             return {"success": False, "content": "此会话未启用生活背景"}
+        policy = targets(self.config.context)
         if self.store is None or not self.persona:
             return {"success": False, "content": "生活笔记服务未就绪"}
         try:
             notes = await self.store.call("notes", self.persona, 3)
         except Exception:
             return {"success": False, "content": "笔记读取失败，请稍后重试；不是没有笔记。"}
+        if not self._policy_current("context", policy):
+            return {"success": False, "content": "此会话授权已更改"}
         rows = [
             {
                 "topic": n["topic"],
@@ -323,6 +346,7 @@ class NekoLifePlugin(MaiBotPlugin):
                         "explore": self.config.explore.enabled,
                         "models": self.config.models.enabled,
                         "error": self.error,
+                        "authorization": self.authorization_status,
                         "snapshot": self.snapshot,
                         "usage": usage,
                         "recent_jobs": jobs[:3],
@@ -446,6 +470,11 @@ class NekoLifePlugin(MaiBotPlugin):
         result = {
             "enabled": self.config.plugin.enabled,
             "error": self.error,
+            "authorization": dict(self.authorization_status),
+            "authorization_label": "；".join(
+                label + "：" + explanation(self.authorization_status.get(key))
+                for key, label in (("context", "聊天背景"), ("sharing", "主动分享"), ("drawing", "自主配图"))
+            ),
             "snapshot": self.snapshot,
             "explore_enabled": self.config.explore.enabled,
             "models_enabled": self.config.models.enabled,
@@ -674,13 +703,20 @@ class NekoLifePlugin(MaiBotPlugin):
         try:
             operation, body, nonce = authenticate(packet, self.ctx.paths.data_dir)
             session = body.get("session_id")
-            if not isinstance(session, str) or session not in self.config.sharing.sessions:
+            if not await self._authorized("sharing", session):
                 return {"success": False, "status": "forbidden_session"}
+            policy = targets(self.config.sharing)
             await self.store.call("nonce", "neko.proactive", nonce)
+            if not self._policy_current("sharing", policy):
+                return {"success": False, "status": "forbidden_session"}
             if operation == "claim" and set(body) == {"session_id"}:
                 if await self.store.call("get", self.persona, "paused", False):
                     return {"success": False, "status": "paused"}
+                if not self._policy_current("sharing", policy):
+                    return {"success": False, "status": "forbidden_session"}
                 candidate = await self.store.call("claim", self.persona, session)
+                if not self._policy_current("sharing", policy):
+                    return {"success": False, "status": "forbidden_session"}
                 return {"success": True, "candidate": candidate}
             if operation == "receipt" and set(body) == {"session_id", "receipt_id", "status", "host_task"}:
                 if not isinstance(body["receipt_id"], str) or len(body["receipt_id"]) != 32:
