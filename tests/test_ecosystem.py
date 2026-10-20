@@ -58,7 +58,24 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             draw = Draw()
             cleanup.push_async_callback(draw.on_unload)
             draw.config.life.enabled = True
-            draw.config.life.sessions = ["chat"]
+            draw.config.life.group_ids = ["123"]
+            draw.config.life.account_id = "456"
+            draw.ctx.chat = types.SimpleNamespace(
+                get_all_streams=AsyncMock(
+                    return_value=[
+                        {
+                            "session_id": "chat",
+                            "stream_id": "chat",
+                            "platform": "qq",
+                            "chat_type": "group",
+                            "is_group_session": True,
+                            "group_id": "123",
+                            "user_id": "999",
+                            "account_id": "456",
+                        }
+                    ]
+                )
+            )
             draw._generate = AsyncMock(return_value=(b"fake-image", "fake-provider"))
             draw._send = AsyncMock()
             store = Store(root / "life")
