@@ -4,6 +4,7 @@ permissions:
   contents: read
 jobs:
   tests:
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -15,30 +16,30 @@ jobs:
       run:
         working-directory: workspace/neko-life
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: workspace/neko-life
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: znzsofficial/neko-web
-          ref: af95e2f7c1ab5a6e9da0dfddca4b47f4e9c3fbaf
+          ref: 3721065b6857b68ce58cc31aaae910ee075e42ab
           path: workspace/neko-web
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: znzsofficial/neko-proactive-mai
-          ref: 4f821d43d2333162b1b13c7cbcae685a8e21ad45
+          ref: f7b3c98df744894793aa35170735220eeb9ed8d4
           path: workspace/neko-proactive-mai
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: znzsofficial/neko-draw
-          ref: 9864a1420d9fd1f74fc9c2b1f819cae2a1e87501
+          ref: f3b833004fafc42a00a910bd13180d23e9c3355f
           path: workspace/neko-draw
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: znzsofficial/neko-tts
-          ref: d6fe8bc45e2c8d78f2c3cc6ba9a13e6c4fbf27a0
+          ref: cc1aa250f8eaa9c5fef8e3d6c1701e2e28194cce
           path: workspace/neko-tts
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e ".[test]"
@@ -53,3 +54,11 @@ jobs:
       - run: python -m ruff check .
       - run: python -m ruff format --check .
       - run: python scripts/build_release.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: neko-life-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.sdk }}
+          path: |
+            workspace/neko-life/dist/*.zip
+            workspace/neko-life/dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 14

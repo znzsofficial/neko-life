@@ -149,7 +149,7 @@ python scripts/build_release.py
 
 模块按存储、预算、模型路由、探索、日程、背景、能力桥和SDK接入分离。测试使用合成数据和假服务，
 不登录账号、不调用真实模型或QQ。生态组合测试需要相邻源码目录，CI显式检出固定SHA；不得借用相邻最新开发分支。
-CI为Linux/Windows × Python3.12/3.14 × SDK2.12.0/最新2.x共8档；`test_suite.py`检查发现数量并禁止任何skip。
+CI为Linux/Windows × Python3.12/3.14 × SDK2.12.0/最新2.x共8档；`test_suite.py`要求至少76项并禁止任何skip。生态固定版本已更新到本轮修复后的主动/Web/Draw/TTS提交；主动测试显式配置当前授权，不用旧白名单行为凑通过。Actions固定官方SHA，构建最终ZIP后从临时解压目录真实导入SDK插件，已验包与摘要作为14天CI artifact留存；不自动发布Release或部署，CI不包含真实配置/Key/DB。
 本地可用`NEKO_LIFE_ECOSYSTEM_ROOT`指定按同一固定SHA导出的四个插件快照目录。普通unittest可显示skip，但不能当完整验证。
 Release使用文件允许列表及固定ZIP元数据，可重复构建，不包含配置、数据库、能力密钥或截图。
 

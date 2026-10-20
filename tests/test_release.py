@@ -9,6 +9,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_release_smoke_rejects_unexpected_member_before_extracting(self):
+        spec = importlib.util.spec_from_file_location("life_release_guard", ROOT / "scripts/build_release.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "unsafe.zip"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("../plugin.py", "raise RuntimeError('must not import')")
+            with self.assertRaisesRegex(ValueError, "unexpected_release_members"):
+                module.verify(path, {"neko-life/plugin.py"})
+
     def test_manifest_has_required_host_fields_and_safe_defaults(self):
         manifest = json.loads((ROOT / "_manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["id"], "neko.life")

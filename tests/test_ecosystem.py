@@ -264,9 +264,9 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             life.config.sharing.enabled = True
             from tests.test_authorization import stream
 
-            life.config.sharing.group_ids = ["123"]
+            life.config.sharing.user_ids = ["123"]
             life.ctx.chat = types.SimpleNamespace(
-                get_stream_by_group_id=AsyncMock(return_value=stream(sid="chat"))
+                get_stream_by_user_id=AsyncMock(return_value=stream("private", sid="chat"))
             )
 
             async def share_call(capability, **kwargs):
@@ -293,8 +293,9 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
 
             bot = Proactive()
             bot.config.life.enabled = True
-            state = proactive.ChatStreamState("chat", "synthetic")
-            self.assertTrue(await bot._do_proactive_chat(state, "synthetic"))
+            bot.config.target.allowed_friends = ["123"]
+            state = proactive.ChatStreamState("chat", "123")
+            self.assertTrue(await bot._do_proactive_chat(state, "123"))
             kwargs = bot.ctx.maisaka.proactive.trigger.call_args.kwargs
             self.assertIn("公开发现", kwargs["reason"])
             self.assertEqual(kwargs["metadata"]["source"], "lonelymai")
@@ -309,7 +310,7 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             await bot.life_after_send(message={"session_id": "chat"}, reply_message_id=task, sent=True)
             self.assertEqual(bot._life._read()[receipt]["status"], "sent")
             self.assertIsNone(await life.store.call("claim", life.persona, "chat"))
-            life.config.sharing.group_ids.clear()
+            life.config.sharing.user_ids.clear()
             # A fresh authenticated caller is denied immediately after revocation.
             with self.assertRaisesRegex(ValueError, "life_unavailable"):
                 await bot._life.claim("chat")

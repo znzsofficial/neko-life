@@ -30,8 +30,8 @@ def main():
     }
     if not required <= discovered:
         raise SystemExit("Critical test discovery missing: " + ", ".join(sorted(required - discovered)))
-    if suite.countTestCases() < 75:
-        raise SystemExit("Test discovery shrank below the reviewed safety baseline (75).")
+    if suite.countTestCases() < 76:
+        raise SystemExit("Test discovery shrank below the reviewed safety baseline (76).")
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     if result.skipped:
         print("CI requires all SDK, authorization and pinned ecosystem tests; skips are failures.")
