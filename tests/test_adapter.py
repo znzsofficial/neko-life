@@ -88,6 +88,24 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result["modified_kwargs"]["items"]), 2)
         self.bot.ctx.llm.generate.assert_not_awaited()
 
+    async def test_background_has_no_permanent_drawing_tool_instructions(self):
+        import time
+
+        self.bot.config.plugin.enabled = True
+        self.bot.config.context.enabled = True
+        self.bot.config.context.sessions = ["chat"]
+        self.bot.config.drawing.enabled = True
+        self.bot.config.drawing.sessions = ["chat"]
+        self.bot.snapshot = {"current": {"summary": "窗边阅读"}, "snapshot_at": time.time()}
+        items = [{"item_type": "UserMessageItem", "parts": [{"type": "text", "text": "今天在干嘛"}]}]
+        for hook in [self.bot.planner_context, self.bot.replyer_context]:
+            result = await hook(session_id="chat", items=items)
+            text = result["modified_kwargs"]["items"][-1]["parts"][0]["text"]
+            self.assertIn("窗边阅读", text)
+            for instruction in ["已授权按需", "neko_life_draw_scene", "query_memory", "自画像", "禁止绕过"]:
+                self.assertNotIn(instruction, text)
+        self.bot.ctx.llm.generate.assert_not_awaited()
+
     async def test_named_command_groups_pause_resume_and_clear_confirmation(self):
         self.bot.config.admin_users = ["123"]
         self.assertFalse(

@@ -205,12 +205,6 @@ class NekoLifePlugin(MaiBotPlugin):
             return ""
         text = latest_text(kwargs.get("items"))
         result = background(self.snapshot, self.notes, text, limit)
-        if await self._authorized("drawing", session, resolved):
-            hint = (
-                "\n已授权按需用neko_life_draw_scene自主配生活环境插画，可不画。禁止绕过此工具重复出图。"
-                "本工具不画人物；自画像遵循neko_draw当前参考图配置，未配置参考图时再query_memory查外貌。"
-            )
-            result = result[: max(0, limit - len(hint))] + hint
         if self.config.context.drawing_context and any(
             word in text for word in ("画一张", "画张", "自画像", "自拍")
         ):
