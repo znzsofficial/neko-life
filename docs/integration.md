@@ -58,6 +58,8 @@ Life配置`drawing.enabled=true`及`drawing.group_ids`/`drawing.user_ids`（或�
 三种功能各自有`group_ids`、`user_ids`，不能互相授权；与旧`sessions`取并集，撤权需同时移除对应旧ID。
 号码只通过`chat.get_stream_by_group_id` / `chat.get_stream_by_user_id`以`platform="qq"`查询已有会话，
 不创建会话。每组每类最多16项、总时限2秒，不跨请求缓存；工作区显示最近核验状态。
+
+多机器人时可在各功能设置`account_id`（机器人QQ号，不是聊天对象），迁移保留原账号范围。号码lookup首条路由不符时只读检查已有QQ会话列表（最多512条）并精确匹配当前session；不猜会话编码、不自动建会话。旧高级sessions取并集，因此迁移到号码后须同时删除对应旧ID，避免撤权残留。
 多路由只匹配宿主lookup返回的已有会话，其他路由用经管理员核验的高级ID。详见[迁移边界](../README.md#群号--qq号与旧配置迁移)。
 
 ## 预算与保护

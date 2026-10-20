@@ -99,6 +99,12 @@ class ChatTargets(PluginConfigBase):
         description="每项填一个私聊QQ号（纯数字，最多16项）。不授权该用户所在的群；群号与QQ号即使相同也不混用。解析失败拒绝授权，见管理状态。",
         json_schema_extra=ui("允许私聊的QQ号", placeholder="123456789"),
     )
+    account_id: str = Field(
+        default="",
+        max_length=20,
+        description="高级：多个机器人账号时可限定机器人QQ号，留空不额外限定。旧授权迁移会保留原账号范围；这不是聊天对象QQ号。",
+        json_schema_extra=ui("高级：限定机器人QQ账号"),
+    )
 
 
 class ContextSettings(ChatTargets):

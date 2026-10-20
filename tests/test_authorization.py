@@ -29,6 +29,65 @@ def stream(kind="group", sid="opaque-host-session", target="123"):
 
 
 class AuthorizationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_multiple_bot_accounts_match_current_session_not_first_target_route(self):
+        calls = []
+        first = {**stream(sid="first-route"), "account_id": "111"}
+        current = {**stream(sid="current-route"), "account_id": "222"}
+
+        async def call(capability, **kwargs):
+            calls.append(capability)
+            payload = (
+                {"success": True, "streams": [first, current]}
+                if capability == "chat.get_all_streams"
+                else {"success": True, "stream": first}
+            )
+            return PluginContext._normalize_capability_result(capability, payload)
+
+        ctx = SimpleNamespace(chat=ChatCapability(SimpleNamespace(call_capability=call)))
+        result = await authorize(ctx, "current-route", ((), ("123",), (), "222"))
+        self.assertEqual(result, (True, "qq_target"))
+        self.assertEqual(calls, ["chat.get_stream_by_group_id", "chat.get_all_streams"])
+        self.assertFalse((await authorize(ctx, "first-route", ((), ("123",), (), "222")))[0])
+        manifest = json.loads((Path(__file__).parents[1] / "_manifest.json").read_text(encoding="utf-8"))
+        self.assertIn("chat.get_all_streams", manifest["capabilities"])
+
+    async def test_account_scope_does_not_grant_another_bot_or_invalid_account(self):
+        current = {**stream(), "account_id": "222"}
+        self.bot.ctx.chat.get_stream_by_group_id.return_value = current
+        self.bot.ctx.chat.get_all_streams = AsyncMock(return_value=[current])
+        self.assertFalse((await authorize(self.bot.ctx, "opaque-host-session", ((), ("123",), (), "111")))[0])
+        self.assertEqual(
+            (await authorize(self.bot.ctx, "opaque-host-session", ((), ("123",), (), "bad")))[1],
+            "invalid_qq_target",
+        )
+        self.assertTrue((await authorize(self.bot.ctx, "opaque-host-session", ((), ("123",), (), "222")))[0])
+
+    async def test_fallback_list_is_bounded_and_rejects_ambiguous_session_metadata(self):
+        self.bot.ctx.chat.get_stream_by_group_id.return_value = stream(sid="other")
+        for rows in [
+            [stream()] * 2,
+            [stream()] * 513,
+            {"success": False},
+            None,
+            [{**stream(), "platform": "other"}],
+            [{**stream(), "chat_type": "private"}],
+        ]:
+            self.bot.ctx.chat.get_all_streams = AsyncMock(return_value=rows)
+            self.assertFalse((await authorize(self.bot.ctx, "opaque-host-session", ((), ("123",), ())))[0])
+
+    async def test_account_scope_revoked_during_list_lookup_denies(self):
+        self.bot.config.context.group_ids = ["123"]
+        self.bot.config.context.account_id = "222"
+        self.bot.ctx.chat.get_stream_by_group_id.return_value = stream(sid="other")
+
+        async def changed(**kwargs):
+            self.bot.config.context.account_id = "333"
+            return [{**stream(), "account_id": "222"}]
+
+        self.bot.ctx.chat.get_all_streams = AsyncMock(side_effect=changed)
+        self.assertFalse(await self.bot._authorized("context", "opaque-host-session"))
+        self.assertEqual(self.bot.authorization_status["context"], "configuration_changed")
+
     def setUp(self):
         class Plugin(NekoLifePlugin):
             config = Settings()
