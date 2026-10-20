@@ -208,7 +208,7 @@ class NekoLifePlugin(MaiBotPlugin):
         if await self._authorized("drawing", session, resolved):
             hint = (
                 "\n已授权按需用neko_life_draw_scene自主配生活环境插画，可不画。禁止绕过此工具重复出图。"
-                "本工具不画人物；自画像仍先query_memory再用neko_draw。"
+                "本工具不画人物；自画像遵循neko_draw当前参考图配置，未配置参考图时再query_memory查外貌。"
             )
             result = result[: max(0, limit - len(hint))] + hint
         if self.config.context.drawing_context and any(
@@ -217,7 +217,7 @@ class NekoLifePlugin(MaiBotPlugin):
             drawing = (
                 "\n仅当用户本次明确要求绘图，当前角色场景可供参考："
                 + self.snapshot.get("scene", {}).get("summary", self.snapshot["current"]["summary"])
-                + "。自画像仍先query_memory查询外貌，再用neko_draw；生成图不是实拍证据。本背景不授权自主配图。"
+                + "。自画像遵循neko_draw当前参考图配置，未配置参考图时再query_memory查外貌；生成图不是实拍证据。本背景不授权自主配图。"
             )
             result = result[: max(0, limit - len(drawing))] + drawing
         if not self._policy_current("context", context_policy):
