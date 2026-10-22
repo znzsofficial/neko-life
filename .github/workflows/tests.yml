@@ -32,12 +32,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: znzsofficial/neko-draw
-          ref: 1abbc240033e7a104226bd4454bccad61b51e996
+          ref: f76e7774e4b3a51fda75816f74adcb4f99ead959
           path: workspace/neko-draw
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: znzsofficial/neko-tts
-          ref: cc1aa250f8eaa9c5fef8e3d6c1701e2e28194cce
+          ref: 15a5c06360a07f826cc7d1e38e772337948f326c
           path: workspace/neko-tts
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

@@ -24,6 +24,7 @@ from .store import Store
 from .sharing import authenticate
 from .drawing import draw_scene
 from .authorization import authorize, targets, explanation
+from .focus import items_for_scope, planner_scopes
 
 
 class NekoLifePlugin(MaiBotPlugin):
@@ -253,7 +254,21 @@ class NekoLifePlugin(MaiBotPlugin):
         error_policy=ErrorPolicy.SKIP,
     )
     async def planner_context(self, **kwargs):
-        text = await self._context(kwargs, 600)
+        if kwargs.get("session_id"):
+            text = await self._context(kwargs, 600)
+        else:
+            policy = targets(self.config.context)
+            chunks = []
+            for session in planner_scopes("", kwargs.get("tool_definitions")):
+                scoped = items_for_scope(kwargs.get("items"), session)
+                if not scoped:
+                    continue
+                text = await self._context({**kwargs, "session_id": session, "items": scoped}, 240)
+                if text:
+                    chunk = "仅供目标 session_id=" + json.dumps(session) + " 的生活参考：\n" + text
+                    if sum(len(c) + 1 for c in chunks) + len(chunk) <= 600:
+                        chunks.append(chunk)
+            text = "\n".join(chunks) if self._policy_current("context", policy) else ""
         if text:
             return {
                 "action": "continue",
