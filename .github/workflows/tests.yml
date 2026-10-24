@@ -1,64 +1,150 @@
 name: tests
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the complete supported compatibility matrix
+        type: boolean
+        default: false
+  schedule:
+    - cron: '23 3 * * *'
 permissions:
   contents: read
+concurrency:
+  group: tests-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      runtime: ${{ steps.changes.outputs.runtime }}
+      full: ${{ steps.changes.outputs.full }}
+      matrix: ${{ steps.changes.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: changes
+        run: python .github/ci_policy.py classify --plugin neko-life
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: python .github/ci_policy.py docs
   tests:
+    name: runtime (${{ matrix.case }})
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        python: ['3.12', '3.14']
-        sdk: ['minimum', 'latest']
-    runs-on: ${{ matrix.os }}
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     defaults:
       run:
         working-directory: workspace/neko-life
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          persist-credentials: false
           path: workspace/neko-life
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          persist-credentials: false
           repository: znzsofficial/neko-web
           ref: 3721065b6857b68ce58cc31aaae910ee075e42ab
           path: workspace/neko-web
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          persist-credentials: false
           repository: znzsofficial/neko-proactive-mai
           ref: ea79a286b5009092381b9fe6188abc431b5e5a1e
           path: workspace/neko-proactive-mai
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          persist-credentials: false
           repository: znzsofficial/neko-draw
-          ref: f76e7774e4b3a51fda75816f74adcb4f99ead959
+          ref: 482c36911b0f9d1026d5fcae9e8f9b96ce1a8802
           path: workspace/neko-draw
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          persist-credentials: false
           repository: znzsofficial/neko-tts
-          ref: 15a5c06360a07f826cc7d1e38e772337948f326c
+          ref: 7be09dec956fbae6a8600eef5df14cf116e18d57
           path: workspace/neko-tts
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e ".[test]"
-      - if: matrix.sdk == 'minimum'
-        run: python -m pip install "maibot-plugin-sdk==2.12.0"
-      - if: matrix.sdk == 'latest'
-        run: python -m pip install --upgrade "maibot-plugin-sdk>=2.12,<3"
-      - run: python -c "import importlib.metadata, maibot_sdk; print('Real SDK', importlib.metadata.version('maibot-plugin-sdk'), maibot_sdk.__file__)"
-      - run: python scripts/test_suite.py
-      - run: python -m unittest discover -q
-        working-directory: workspace/neko-draw
-      - run: python -m ruff check .
-      - run: python -m ruff format --check .
-      - run: python scripts/build_release.py
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Select real SDK
+        shell: python
+        env:
+          SDK_SPEC: ${{ matrix.sdk_spec }}
+        run: |
+          import os, subprocess, sys
+          subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'maibot-plugin-sdk'+os.environ['SDK_SPEC']], check=True)
+      - run: python -m pip check
+      - name: Run tests
+        run: python scripts/test_suite.py
+      - name: Lint
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+      - name: Verify source package
+        run: python scripts/build_release.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: neko-life-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.sdk }}
+          name: neko-life-${{ matrix.case }}
           path: |
             workspace/neko-life/dist/*.zip
             workspace/neko-life/dist/checksums.txt
           if-no-files-found: error
           retention-days: 14
+  ci-gate:
+    if: always()
+    needs: [changes, docs, tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: python .github/ci_policy.py gate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+  publish-gate:
+    if: always() && needs.changes.outputs.runtime == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [changes, docs, tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: python .github/ci_policy.py gate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+  compatibility-proof:
+    if: always() && needs.changes.outputs.full == 'true' && needs.tests.result == 'success' && needs.docs.result == 'success'
+    needs: [changes, docs, tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: python .github/ci_policy.py gate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}

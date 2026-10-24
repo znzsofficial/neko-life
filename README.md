@@ -163,7 +163,9 @@ python scripts/build_release.py
 
 模块按存储、预算、模型路由、探索、日程、背景、能力桥和SDK接入分离。测试使用合成数据和假服务，
 不登录账号、不调用真实模型或QQ。生态组合测试需要相邻源码目录，CI显式检出固定SHA；不得借用相邻最新开发分支。
-CI为Linux/Windows × Python3.12/3.14 × SDK2.12.0/最新2.x共8档；`test_suite.py`要求至少106项并禁止任何skip。生态固定版本已更新到本轮修复后的主动/Web/Draw/TTS提交；主动测试显式配置当前授权，不用旧白名单行为凑通过。Actions固定官方SHA，构建最终ZIP后从临时解压目录真实导入SDK插件，已验包与摘要作为14天CI artifact留存；不自动发布Release或部署，CI不包含真实配置/Key/DB。
+日常源码CI为Linux生产Python3.14.4/SDK2.16.0及Windows最低Python3.12/SDK2.12两组；完整自有用例和原关键命名安全/生态回归仍实际执行，禁止零发现/意外skip，不以固定总数证明正确。原8组兼容矩阵保留在v标签、手动full及有源码变化的夜间验证，另含固定生产组合。Life保留固定源码的Web/主动/Draw/TTS针对性协作测试，不再在自身工作流重复跑Draw整个测试库；Draw/TTS固定组合已对齐已部署业务源码。Actions固定官方SHA，最终ZIP解压真实导入SDK、校验包与摘要，artifact保留14天；不自动发布或部署，不含真实配置/Key/DB。
+
+纯根目录/docs下Markdown只查文档；源码上传仍须确切main提交及实际通过的核心测试/打包/`ci-gate`/`publish-gate`。文档-only绿灯、取消、失败、意外skip、旧SHA或夜间结果不能放行源码。确需发布文档HEAD时受控手动跑该HEAD核心验证，不做空提交。所有CI只用合成数据，不发模型/QQ。
 本地可用`NEKO_LIFE_ECOSYSTEM_ROOT`指定按同一固定SHA导出的四个插件快照目录。普通unittest可显示skip，但不能当完整验证。
 Release使用文件允许列表及固定ZIP元数据，可重复构建，不包含配置、数据库、能力密钥或截图。
 
