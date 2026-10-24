@@ -91,6 +91,16 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result["modified_kwargs"]["items"]), 2)
         self.bot.ctx.llm.generate.assert_not_awaited()
 
+    async def test_irrelevant_next_request_removes_our_old_background_only(self):
+        from neko_life.context import inject
+
+        original = [{"item_type": "UserMessageItem", "parts": [{"type": "text", "text": "帮我算一道数学题"}]}]
+        items = inject(original, "已经过时的生活背景")
+        for hook in (self.bot.planner_context, self.bot.replyer_context):
+            result = await hook(session_id="not-authorized", items=items)
+            self.assertEqual(result["modified_kwargs"]["items"], original)
+            self.assertEqual(len(items), 2)
+
     async def test_background_has_no_permanent_drawing_tool_instructions(self):
         import time
 

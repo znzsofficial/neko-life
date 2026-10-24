@@ -98,6 +98,7 @@ class Store:
             source_key TEXT, payload TEXT, fingerprint TEXT);
           CREATE TABLE IF NOT EXISTS share_offers(receipt TEXT PRIMARY KEY, protocol INTEGER, activity REAL);
           CREATE TABLE IF NOT EXISTS share_reviews(receipt TEXT PRIMARY KEY, reviewed REAL, note TEXT);
+          CREATE TABLE IF NOT EXISTS share_prompt_uses(receipt TEXT PRIMARY KEY, shown REAL);
           CREATE TABLE IF NOT EXISTS share_executions(receipt TEXT PRIMARY KEY, session TEXT,
             reply_id TEXT, call_id TEXT, stage TEXT, expected INTEGER, UNIQUE(session,reply_id,call_id));
           CREATE TABLE IF NOT EXISTS note_context(note TEXT PRIMARY KEY, family TEXT, shareable INTEGER);
@@ -487,6 +488,7 @@ class Store:
                 ("share_materials", "candidate", "candidates"),
                 ("share_offers", "receipt", "receipts"),
                 ("share_reviews", "receipt", "receipts"),
+                ("share_prompt_uses", "receipt", "receipts"),
                 ("share_executions", "receipt", "receipts"),
                 ("note_context", "note", "notes"),
                 ("question_roots", "question", "questions"),
@@ -681,6 +683,46 @@ class Store:
         if row is None:
             raise StoreError("not_found")
         return row["status"]
+
+    def _share_prompt(self, persona, session, receipt, task):
+        """One request-local offer, not a send acknowledgement or a history entry."""
+        import re
+
+        match = (
+            re.fullmatch(r"proactive:(?:neko\.proactive|attention-seeker-mai):(\d{10,16})", task)
+            if isinstance(task, str)
+            else None
+        )
+        if not match:
+            return None
+        row = self.conn.execute(
+            "SELECT r.*,c.expires material_expires,n.topic,n.summary,n.opinion,n.sources,m.payload "
+            "FROM receipts r JOIN candidates c ON c.id=r.candidate LEFT JOIN notes n ON n.id=c.note_id "
+            "LEFT JOIN share_materials m ON m.candidate=c.id WHERE r.id=? AND r.persona=? AND r.session=?",
+            (receipt, persona, session),
+        ).fetchone()
+        if (
+            row is None
+            or row["status"] not in {"leased", "submitted"}
+            or min(row["expires"], row["material_expires"]) <= self.clock()
+        ):
+            return None
+        if row["host_task"]:
+            if row["host_task"] != task:
+                return None
+        elif row["status"] != "leased" or abs(int(match[1]) / 1000 - row["created"]) > 10:
+            return None
+        with self.conn:
+            if (
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO share_prompt_uses VALUES (?,?)", (receipt, self.clock())
+                ).rowcount
+                != 1
+            ):
+                return None
+            if not row["host_task"]:
+                self.conn.execute("UPDATE receipts SET host_task=? WHERE id=?", (task, receipt))
+        return self._share_payload(row)
 
     def _share_skips(self, persona):
         return [

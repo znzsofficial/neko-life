@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: znzsofficial/neko-proactive-mai
-          ref: 7284691548fd9f4ff3c67362aeed0354597f0d90
+          ref: ea79a286b5009092381b9fe6188abc431b5e5a1e
           path: workspace/neko-proactive-mai
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

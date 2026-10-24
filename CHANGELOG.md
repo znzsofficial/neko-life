@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 — Request-scoped Life context
+
+- 候选只通过签名prompt操作给当前Planner请求提供一次；短租约、真实会话/任务绑定，已用/过期/已选择/撤权不重放。此记录不冒充发送成功或释放未知。
+- 普通聊天下一轮无相关素材时移除本插件旧背景，不误用Focus内部任务作用户问话；原背景预算和权限不变。
+- 配套主动2.2.1不再将候选正文/操作提示写进任务历史。用户另行授权的宿主neko-life-context-v1在新摘要入口排除临时背景和内部任务，保留真实消息、引用、发言、工具配对及已有摘要。
+
 ## 0.5.2 — Auditable historical-unknown acknowledgement
 
 - 增量`share_reviews`只记录经管理员明确授权知悉的历史未知；仅免除其新积压阻塞，不改unknown/今日额度/冷却/去重，不重放。

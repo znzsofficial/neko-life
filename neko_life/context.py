@@ -19,7 +19,7 @@ def latest_text(items):
             continue
         texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("type") == "text"]
         text = " ".join(t for t in texts if isinstance(t, str))[-2000:]
-        if text.lstrip().startswith("<plugin_proactive_task"):
+        if text.lstrip().startswith(("<plugin_proactive_task", "[聊天任务事件]\n<focus_event ")):
             continue
         return text
     return ""

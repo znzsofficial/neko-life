@@ -32,11 +32,13 @@ def main():
         "tests.test_life_sharing.SharingFlowTests.test_partial_wrong_chat_and_duplicate_indices_not_success_late_exact_ack_settles",
         "tests.test_life_sharing.SharingFlowTests.test_unknown_does_not_replay_but_new_material_can_use_second_slot",
         "tests.test_life_sharing.ShareAdapterTests.test_extension_binds_actual_execution_and_replyer_prompt_without_new_model_call",
+        "tests.test_life_sharing.SharingFlowTests.test_prompt_is_once_only_exact_task_session_and_never_a_delivery_receipt",
+        "tests.test_adapter.AdapterTests.test_irrelevant_next_request_removes_our_old_background_only",
     }
     if not required <= discovered:
         raise SystemExit("Critical test discovery missing: " + ", ".join(sorted(required - discovered)))
-    if suite.countTestCases() < 106:
-        raise SystemExit("Test discovery shrank below the reviewed safety baseline (106).")
+    if suite.countTestCases() < 112:
+        raise SystemExit("Test discovery shrank below the reviewed safety baseline (112).")
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     if result.skipped:
         print("CI requires all SDK, authorization and pinned ecosystem tests; skips are failures.")

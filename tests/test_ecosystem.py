@@ -294,7 +294,9 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
                 envelope = {"success": True, "result": await life.sharing_api(**kwargs["args"])}
                 return PluginContext._normalize_capability_result("api.call", envelope)
 
-            task = "proactive:neko.proactive:1700000000000"
+            import time
+
+            task = "proactive:neko.proactive:" + str(int(time.time() * 1000))
 
             class Proactive(proactive.LonelyMaiPlugin):
                 config = proactive.LonelyMaiConfig()
@@ -315,12 +317,27 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             state = proactive.ChatStreamState("chat", "123")
             self.assertTrue(await bot._do_proactive_chat(state, "123"))
             kwargs = bot.ctx.maisaka.proactive.trigger.call_args.kwargs
-            self.assertIn("公开发现", kwargs["reason"])
+            self.assertNotIn("公开发现", kwargs["reason"])
             self.assertEqual(kwargs["metadata"]["source"], "lonelymai")
             self.assertEqual(kwargs["intent"], bot.config.intent.private_text)
             rows = bot._life._read()
             receipt = next(iter(rows))
             self.assertEqual(rows[receipt]["status"], "submitted")
+            bot._states[(False, "123")] = state
+            text = (
+                f'<plugin_proactive_task id="{task}" plugin_id="neko.proactive">\n'
+                f"插件请求你主动处理一轮聊天：{kwargs['intent']}\n触发原因：{kwargs['reason']}\n"
+                "请结合当前聊天关系、记忆和上下文，自行决定是否回复以及如何表达。\n</plugin_proactive_task>"
+            )
+            request = {
+                "session_id": "chat",
+                "items": [{"item_type": "UserMessageItem", "parts": [{"type": "text", "text": text}]}],
+            }
+            first = await bot.filter_planner_tasks(**request)
+            self.assertIn("公开发现", json.dumps(first, ensure_ascii=False))
+            self.assertNotIn(
+                "公开发现", json.dumps(await bot.filter_planner_tasks(**request), ensure_ascii=False)
+            )
             await bot.life_after_send(
                 message={"session_id": "chat"}, reply_message_id="real-qq-anchor", sent=True
             )

@@ -204,6 +204,7 @@ class SharingFlowTests(unittest.IsolatedAsyncioTestCase):
         policy = {"daily_max": 1, "interval_minutes": 180, "unknown_max": 1}
         await self.store.call("sharing_policy", policy)
         self.assertEqual(await self.store.call("share_gate", "chat"), "unknown_backlog")
+
         with sqlite3.connect(self.store.path) as db:
             db.execute(
                 "INSERT INTO share_reviews VALUES (?,?,?)",
@@ -220,6 +221,24 @@ class SharingFlowTests(unittest.IsolatedAsyncioTestCase):
         new = (await self.store.call("claim", "p", "chat"))["receipt_id"]
         await self.store.call("receipt", "p", "chat", new, "unknown")
         self.assertEqual(await self.store.call("share_gate", "chat"), "unknown_backlog")
+
+    async def test_prompt_is_once_only_exact_task_session_and_never_a_delivery_receipt(self):
+        receipt = await self.offer()
+        task = "proactive:neko.proactive:" + str(int(self.now[0] * 1000))
+        self.assertIsNone(await self.store.call("share_prompt", "p", "wrong", receipt, task))
+        self.assertIsNotNone(await self.store.call("share_prompt", "p", "chat", receipt, task))
+        self.assertIsNone(await self.store.call("share_prompt", "p", "chat", receipt, task))
+        self.assertEqual(await self.store.call("share_status", "p", "chat", receipt), "leased")
+        await self.store.call("receipt", "p", "chat", receipt, "submitted", task)
+        self.assertEqual(await self.store.call("share_status", "p", "chat", receipt), "submitted")
+
+    async def test_expired_and_declined_offers_cannot_reenter_planner(self):
+        receipt = await self.offer()
+        task = "proactive:neko.proactive:" + str(int(self.now[0] * 1000))
+        self.now[0] += 181
+        self.assertIsNone(await self.store.call("share_prompt", "p", "chat", receipt, task))
+        await self.store.call("decline_share", "p", "chat", receipt)
+        self.assertIsNone(await self.store.call("share_prompt", "p", "chat", receipt, task))
 
     async def test_two_related_notes_force_fresh_branch_without_extra_model_or_search(self):
         for i in range(2):

@@ -289,10 +289,11 @@ class NekoLifePlugin(MaiBotPlugin):
                     if sum(len(c) + 1 for c in chunks) + len(chunk) <= 600:
                         chunks.append(chunk)
             text = "\n".join(chunks) if self._policy_current("context", policy) else ""
-        if text:
+        items = inject(kwargs.get("items"), text)
+        if items != kwargs.get("items"):
             return {
                 "action": "continue",
-                "modified_kwargs": {**kwargs, "items": inject(kwargs["items"], text)},
+                "modified_kwargs": {**kwargs, "items": items},
             }
         return {"action": "continue"}
 
@@ -305,10 +306,11 @@ class NekoLifePlugin(MaiBotPlugin):
     )
     async def replyer_context(self, **kwargs):
         text = await self._context(kwargs, 300)
-        if text:
+        items = inject(kwargs.get("items"), text)
+        if items != kwargs.get("items"):
             return {
                 "action": "continue",
-                "modified_kwargs": {**kwargs, "items": inject(kwargs["items"], text)},
+                "modified_kwargs": {**kwargs, "items": items},
             }
         return {"action": "continue"}
 
@@ -895,6 +897,17 @@ class NekoLifePlugin(MaiBotPlugin):
                         "share_status", self.persona, session, body["receipt_id"]
                     ),
                 }
+            if operation == "prompt" and set(body) == {"session_id", "receipt_id", "host_task"}:
+                if await self.store.call("get", self.persona, "paused", False):
+                    return {"success": True, "candidate": None}
+                if not self._policy_current("sharing", policy):
+                    return {"success": False, "status": "forbidden_session"}
+                candidate = await self.store.call(
+                    "share_prompt", self.persona, session, body["receipt_id"], body["host_task"]
+                )
+                if not self._policy_current("sharing", policy):
+                    candidate = None
+                return {"success": True, "candidate": candidate}
             return {"success": False, "status": "invalid_request"}
         except Exception:
             return {"success": False, "status": "unavailable_or_unauthorized"}
