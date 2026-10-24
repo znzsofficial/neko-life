@@ -11,7 +11,7 @@ import uuid
 from zoneinfo import ZoneInfo
 
 from maibot_sdk import API, Command, HookHandler, MaiBotPlugin, Tool, ReplyExtension
-from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder
+from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder, ToolParameterInfo, ToolParamType
 
 from .bridge import WebBridge, client_key
 from .config import Settings
@@ -374,9 +374,26 @@ class NekoLifePlugin(MaiBotPlugin):
                     "share_delivery", self.persona, session_id, reply_id, call_id, send_results
                 )
 
-    @Tool("neko_life_skip_share", description="明确不采用本次Life候选，释放机会；不发送任何消息。")
-    async def skip_share(self, receipt_id: str, **kwargs):
+    @Tool(
+        "neko_life_skip_share",
+        description="明确不采用本次Life候选，释放机会；不发送任何消息。",
+        parameters=[
+            ToolParameterInfo(
+                name="receipt_id",
+                param_type=ToolParamType.STRING,
+                description="本次主动任务给出的Life候选编号，不是QQ引用或消息号",
+                required=True,
+            )
+        ],
+    )
+    async def skip_share(self, receipt_id: str = "", **kwargs):
         session = kwargs.get("session_id") or kwargs.get("stream_id") or ""
+        if not isinstance(receipt_id, str) or not re.fullmatch("[a-f0-9]{32}", receipt_id):
+            return {
+                "success": False,
+                "status": "invalid_receipt",
+                "content": "候选编号缺失或无效；不要猜测编号或反复调用，本轮可以不分享。",
+            }
         async with self.lifecycle:
             if not self.store or not self.persona or not await self._authorized("sharing", session):
                 return {"success": False, "status": "not_authorized"}
@@ -387,7 +404,11 @@ class NekoLifePlugin(MaiBotPlugin):
                 status = await self.store.call("decline_share", self.persona, session, receipt_id)
                 return {"success": True, "status": status}
             except ValueError:
-                return {"success": False, "status": "not_releasable"}
+                return {
+                    "success": False,
+                    "status": "not_releasable",
+                    "content": "候选已过期、已采用或无法安全释放；不要重试或补发，继续正常聊天。",
+                }
 
     @Tool("neko_life_recent", description="查看近期公开见闻和来源，仅限已允许的聊天。")
     async def recent(self, **kwargs):

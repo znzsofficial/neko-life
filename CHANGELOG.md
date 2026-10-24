@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — Declare skip-tool parameters explicitly
+
+- `neko_life_skip_share`显式声明必填receipt_id；SDK不会从Python签名推断工具参数。缺失/畸形参数返回有界错误，不再抛TypeError或提示重试。
+- 增加真实SDK组件Schema及宿主kwargs调用回归，不清理既有unknown、不伪造未发送结果。
+
 ## 0.5.0 — Life material sharing and correlated delivery
 
 - 具体角色场景、晨间梦境、晚间感想与公开见闻统一候选，时效/场景/近似内容去重，不另起定时器或每轮新增模型判断。

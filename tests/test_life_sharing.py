@@ -247,6 +247,22 @@ class SharingFlowTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ShareAdapterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_skip_tool_real_sdk_schema_declares_required_receipt(self):
+        from maibot_sdk.components import collect_components
+
+        component = next(c for c in collect_components(self.plugin) if c["name"] == "neko_life_skip_share")
+        parameter = next(p for p in component["metadata"]["parameters"] if p["name"] == "receipt_id")
+        self.assertIs(parameter["required"], True)
+        self.assertEqual(parameter["param_type"], "string")
+
+    async def test_host_call_with_missing_receipt_returns_error_not_typeerror(self):
+        for kwargs in [{"session_id": "chat"}, {"session_id": "chat", "receipt_id": None}]:
+            result = await self.plugin.skip_share(**kwargs)
+            self.assertEqual(result["status"], "invalid_receipt")
+        self.assertEqual(
+            await self.plugin.store.call("share_status", self.plugin.persona, "chat", self.receipt), "leased"
+        )
+
     async def asyncSetUp(self):
         from neko_life.config import Settings
         from neko_life.plugin import NekoLifePlugin
