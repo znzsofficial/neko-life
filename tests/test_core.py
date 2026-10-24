@@ -162,6 +162,16 @@ class StoreTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(StoreError, "unattributed_delivery"):
             await self.store.call("receipt", "p", "chat", key, "sent", task)
         await self.store.call("receipt", "p", "chat", key, "submitted", task)
+        await self.store.call("adopt", "p", "chat", key, "reply", "call")
+        await self.store.call("adopt", "p", "chat", key, "reply", "call", 1)
+        await self.store.call(
+            "share_delivery",
+            "p",
+            "chat",
+            "reply",
+            "call",
+            [{"index": 0, "success": True, "message_id": "qq-real"}],
+        )
         self.assertEqual(await self.store.call("receipt", "p", "chat", key, "sent", task), "sent")
         self.assertEqual(await self.store.call("receipt", "p", "chat", key, "sent", task), "sent")
         with self.assertRaises(StoreError):

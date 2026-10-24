@@ -11,6 +11,8 @@ import time
 import uuid
 from zoneinfo import ZoneInfo
 
+from .materials import content_key
+
 
 class StoreError(ValueError):
     pass
@@ -21,13 +23,16 @@ def fingerprint(text):
 
 
 class Store:
-    def __init__(self, directory, clock=time.time, limits=None, interval_seconds=7200):
+    def __init__(self, directory, clock=time.time, limits=None, interval_seconds=7200, sharing=None):
         self.path = Path(directory) / "life.db"
         self.clock = clock
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="neko-life-db")
         self.conn = None
         self.pending = 0
         self.interval_seconds = max(300, interval_seconds)
+        self.sharing = {"daily_max": 2, "interval_minutes": 180, "unknown_max": 8, **(sharing or {})}
+        if any(type(v) is not int or not 1 <= v <= 1440 for v in self.sharing.values()):
+            raise StoreError("invalid_sharing_policy")
         defaults = {
             "round": 3,
             "search": 6,
@@ -89,12 +94,53 @@ class Store:
             session TEXT, day TEXT, status TEXT, host_task TEXT, created REAL, expires REAL,
             UNIQUE(candidate,session));
           CREATE TABLE IF NOT EXISTS nonces(client TEXT, nonce TEXT, created REAL, PRIMARY KEY(client,nonce));
+          CREATE TABLE IF NOT EXISTS share_materials(candidate TEXT PRIMARY KEY, kind TEXT,
+            source_key TEXT, payload TEXT, fingerprint TEXT);
+          CREATE TABLE IF NOT EXISTS share_offers(receipt TEXT PRIMARY KEY, protocol INTEGER, activity REAL);
+          CREATE TABLE IF NOT EXISTS share_executions(receipt TEXT PRIMARY KEY, session TEXT,
+            reply_id TEXT, call_id TEXT, stage TEXT, expected INTEGER, UNIQUE(session,reply_id,call_id));
+          CREATE TABLE IF NOT EXISTS note_context(note TEXT PRIMARY KEY, family TEXT, shareable INTEGER);
+          CREATE TABLE IF NOT EXISTS question_roots(question TEXT PRIMARY KEY, family TEXT);
           PRAGMA user_version=1;
         """)
         self.path.chmod(0o600)
         with self.conn:
             self.conn.execute("UPDATE jobs SET status='unknown' WHERE status='running'")
-            self.conn.execute("UPDATE receipts SET status='unknown' WHERE status IN ('leased','submitted')")
+            self.conn.execute(
+                "UPDATE receipts SET status='unknown' WHERE status IN ('leased','submitted','adopted')"
+            )
+
+    def _sharing_policy(self, settings):
+        if any(type(settings.get(k)) is not int or not 1 <= settings[k] <= 1440 for k in self.sharing):
+            raise StoreError("invalid_sharing_policy")
+        self.sharing = {k: settings[k] for k in self.sharing}
+
+    def _material(self, persona, material):
+        """Source identity is stable: config reloads cannot regenerate missed events."""
+        now = self.clock()
+        if material["expires"] <= now:
+            return
+        source = material["source_key"]
+        candidate = fingerprint(persona + ":" + source)[:32]
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO candidates VALUES (?,?,?,?,?)",
+                (candidate, persona, "life:" + source, now, material["expires"]),
+            )
+            self.conn.execute(
+                "INSERT OR IGNORE INTO share_materials VALUES (?,?,?,?,?)",
+                (
+                    candidate,
+                    material["kind"],
+                    source,
+                    json.dumps(material, ensure_ascii=False, allow_nan=False),
+                    content_key(material["summary"]),
+                ),
+            )
+
+    def _materials(self, persona, materials):
+        for material in materials[:3]:
+            self._material(persona, material)
 
     def _day(self):
         return datetime.fromtimestamp(self.clock(), ZoneInfo("Asia/Shanghai")).date().isoformat()
@@ -238,7 +284,7 @@ class Store:
                     "",
                     "",
                     self.clock(),
-                    json.dumps({"origin": "manual" if manual else "autonomous"}),
+                    json.dumps({"origin": "manual" if manual else "autonomous", "phase": "choose"}),
                 ),
             )
         return key
@@ -294,7 +340,9 @@ class Store:
             )
         ]
 
-    def _save_note(self, persona, topic, summary, opinion, sources, questions, depth=0):
+    def _save_note(
+        self, persona, topic, summary, opinion, sources, questions, depth=0, family="", shareable=True
+    ):
         if not summary or not sources:
             raise StoreError("empty_evidence")
         topic_key = fingerprint(topic)
@@ -336,6 +384,9 @@ class Store:
                 "INSERT INTO candidates VALUES (?,?,?,?,?)",
                 (uuid.uuid4().hex, persona, key, self.clock(), self.clock() + 24 * 3600),
             )
+            self.conn.execute(
+                "INSERT INTO note_context VALUES (?,?,?)", (key, family or topic, int(shareable))
+            )
             if depth < 2:
                 for text in questions[:3]:
                     if (
@@ -346,10 +397,11 @@ class Store:
                         >= 12
                     ):
                         break
-                    self.conn.execute(
+                    question_id = uuid.uuid4().hex
+                    cursor = self.conn.execute(
                         "INSERT OR IGNORE INTO questions VALUES (?,?,?,?,?,?,?)",
                         (
-                            uuid.uuid4().hex,
+                            question_id,
                             persona,
                             text[:160],
                             depth + 1,
@@ -358,16 +410,29 @@ class Store:
                             self.clock() + 7 * 86400,
                         ),
                     )
+                    if cursor.rowcount:
+                        self.conn.execute(
+                            "INSERT INTO question_roots VALUES (?,?)", (question_id, family or topic)
+                        )
         return key
 
     def _questions(self, persona):
         return [
             dict(row)
             for row in self.conn.execute(
-                "SELECT * FROM questions WHERE persona=? AND expires>? AND attempts<2 ORDER BY created LIMIT 12",
+                "SELECT q.*,coalesce(r.family,q.text) family FROM questions q LEFT JOIN question_roots r ON r.question=q.id "
+                "WHERE q.persona=? AND q.expires>? AND q.attempts<2 ORDER BY q.created LIMIT 12",
                 (persona, self.clock()),
             )
         ]
+
+    def _exploration_direction(self, persona):
+        rows = self.conn.execute(
+            "SELECT coalesce(x.family,n.topic) family FROM notes n LEFT JOIN note_context x ON x.note=n.id "
+            "WHERE n.persona=? ORDER BY n.created DESC LIMIT 2",
+            (persona,),
+        ).fetchall()
+        return rows[0]["family"] if len(rows) == 2 and rows[0]["family"] == rows[1]["family"] else ""
 
     def _attempt_question(self, persona, key):
         with self.conn:
@@ -379,14 +444,19 @@ class Store:
         now = self.clock()
         with self.conn:
             self.conn.execute(
-                "UPDATE receipts SET status='unknown' WHERE status IN ('leased','submitted') AND expires<?",
+                "UPDATE receipts SET status='unknown' WHERE status IN ('leased','submitted','adopted') AND expires<?",
                 (now,),
             )
             rules = [
                 ("nonces", "created<?", (now - 300,)),
                 ("questions", "expires<?", (now,)),
-                ("candidates", "expires<?", (now - 7 * 86400,)),
-                ("receipts", "created<? AND status NOT IN ('leased','submitted')", (now - 30 * 86400,)),
+                (
+                    "candidates",
+                    "expires<? AND id NOT IN (SELECT candidate FROM receipts WHERE status IN ('leased','submitted','adopted','unknown'))",
+                    (now - 7 * 86400,),
+                ),
+                # Unknown attribution is never discarded to make room for more sends.
+                ("receipts", "created<? AND status IN ('sent','released','declined')", (now - 30 * 86400,)),
                 ("notes", "expires<? AND id NOT IN (SELECT note_id FROM candidates)", (now,)),
                 ("jobs", "created<? AND status!='running'", (now - 7 * 86400,)),
                 (
@@ -412,6 +482,14 @@ class Store:
                 "DELETE FROM kv WHERE rowid IN (SELECT rowid FROM kv WHERE (key LIKE 'dream:%' AND substr(key,7,10)<?) OR (key LIKE 'diary:%' AND substr(key,7,10)<?) LIMIT 128)",
                 (cutoff, cutoff),
             )
+            for table, column, owner in (
+                ("share_materials", "candidate", "candidates"),
+                ("share_offers", "receipt", "receipts"),
+                ("share_executions", "receipt", "receipts"),
+                ("note_context", "note", "notes"),
+                ("question_roots", "question", "questions"),
+            ):
+                self.conn.execute(f"DELETE FROM {table} WHERE {column} NOT IN (SELECT id FROM {owner})")
 
     def _nonce(self, client, nonce):
         with self.conn:
@@ -426,39 +504,120 @@ class Store:
     def _claim(self, persona, session):
         now, day = self.clock(), self._day()
         with self.conn:
-            # Lease uncertainty is counted conservatively; expiry never means "not sent".
-            if self.conn.execute(
-                "SELECT 1 FROM receipts WHERE session=? AND day=? AND status!='released'",
-                (session, day),
-            ).fetchone():
+            reason = self._share_gate(session)
+            if reason:
+                self._set(persona, "share_skip:" + fingerprint(session)[:16], {"reason": reason, "at": now})
                 return None
-            row = self.conn.execute(
-                """SELECT c.id AS candidate, n.* FROM candidates c JOIN notes n ON c.note_id=n.id
-                WHERE c.persona=? AND c.expires>? AND n.expires>?
+            rows = self.conn.execute(
+                """SELECT c.id candidate,c.created,c.expires,n.topic,n.summary,n.opinion,n.sources,
+                    m.payload,m.kind,coalesce(x.shareable,1) shareable
+                FROM candidates c LEFT JOIN notes n ON c.note_id=n.id
+                LEFT JOIN share_materials m ON m.candidate=c.id LEFT JOIN note_context x ON x.note=n.id
+                WHERE c.persona=? AND c.expires>? AND (m.candidate IS NOT NULL OR n.expires>?)
                   AND NOT EXISTS(SELECT 1 FROM receipts r WHERE r.candidate=c.id AND r.session=?)
-                ORDER BY c.created DESC LIMIT 1""",
-                (persona, now, now, session),
+                  AND NOT EXISTS(SELECT 1 FROM receipts r WHERE r.candidate=c.id AND r.created>?
+                    AND r.status NOT IN ('released','declined'))
+                ORDER BY c.created DESC LIMIT 32""",
+                (persona, now, now, session, now - self.sharing["interval_minutes"] * 60),
+            ).fetchall()
+            previous = self.conn.execute(
+                "SELECT coalesce(m.kind,'discovery') kind FROM receipts r LEFT JOIN share_materials m ON m.candidate=r.candidate "
+                "WHERE r.session=? AND r.status NOT IN ('released','declined') ORDER BY r.created DESC LIMIT 1",
+                (session,),
             ).fetchone()
+            # Alternate broad material types rather than enforce a percentage quota.
+            preferred = "discovery" if previous and previous["kind"] != "discovery" else "life"
+            rows = sorted(
+                rows, key=lambda r: ((r["kind"] or "discovery") == "discovery") != (preferred == "discovery")
+            )
+            row = next((r for r in rows if r["shareable"] and not self._similar_share(session, r)), None)
             if row is None:
+                self._set(
+                    persona,
+                    "share_skip:" + fingerprint(session)[:16],
+                    {"reason": "no_fresh_material", "at": now},
+                )
                 return None
             receipt = uuid.uuid4().hex
             self.conn.execute(
                 "INSERT INTO receipts VALUES (?,?,?,?,?,?,?,?,?)",
                 (receipt, row["candidate"], persona, session, day, "leased", "", now, now + 180),
             )
+            self.conn.execute("INSERT INTO share_offers VALUES (?,2,?)", (receipt, now))
+        material = self._share_payload(row)
+        self._set(persona, "share_skip:" + fingerprint(session)[:16], {"reason": "offered", "at": now})
         return {
             "receipt_id": receipt,
-            "topic": row["topic"],
-            "summary": row["summary"][:300],
-            "sources": json.loads(row["sources"])[:2],
+            "protocol": 2,
+            **material,
             "expires_at": now + 180,
         }
+
+    def _share_payload(self, row):
+        if row["payload"]:
+            data = json.loads(row["payload"])
+            return {k: data[k] for k in ("kind", "topic", "summary", "opinion", "sources", "fictional")}
+        return {
+            "kind": "discovery",
+            "topic": row["topic"],
+            "summary": row["summary"][:300],
+            "opinion": (row["opinion"] or "")[:100],
+            "sources": json.loads(row["sources"])[:2],
+            "fictional": False,
+        }
+
+    def _similar_share(self, session, row):
+        from difflib import SequenceMatcher
+
+        text = self._share_payload(row)["summary"]
+        for previous in self.conn.execute(
+            "SELECT n.summary,m.payload FROM receipts r LEFT JOIN candidates c ON c.id=r.candidate "
+            "LEFT JOIN notes n ON n.id=c.note_id LEFT JOIN share_materials m ON m.candidate=c.id "
+            "WHERE r.session=? AND r.created>? ORDER BY r.created DESC LIMIT 16",
+            (session, self.clock() - 7 * 86400),
+        ):
+            other = json.loads(previous["payload"])["summary"] if previous["payload"] else previous["summary"]
+            if other and (
+                content_key(other) == content_key(text) or SequenceMatcher(None, other, text).ratio() >= 0.86
+            ):
+                return True
+        return False
+
+    def _share_gate(self, session):
+        now = self.clock()
+        rows = self.conn.execute(
+            "SELECT r.status,r.day,r.created,r.expires,coalesce(o.activity,r.created) activity "
+            "FROM receipts r LEFT JOIN share_offers o ON o.receipt=r.id WHERE r.session=?",
+            (session,),
+        ).fetchall()
+        uncertain = [
+            r
+            for r in rows
+            if r["status"] == "unknown"
+            or (r["status"] in {"leased", "submitted", "adopted"} and r["expires"] <= now)
+        ]
+        if len(uncertain) >= self.sharing["unknown_max"]:
+            return "unknown_backlog"
+        if any(r["status"] in {"leased", "submitted", "adopted"} and r["expires"] > now for r in rows):
+            return "in_flight"
+        today = [r for r in rows if r["day"] == self._day()]
+        if len(today) >= self.sharing["daily_max"] * 4:
+            return "attempt_limit"
+        counted = [r for r in rows if r["status"] not in {"released", "declined"}]
+        if sum(r["day"] == self._day() for r in counted) >= self.sharing["daily_max"]:
+            return "daily_share_limit"
+        if any(now - r["activity"] < self.sharing["interval_minutes"] * 60 for r in counted):
+            return "share_cooldown"
+        return ""
 
     def _share_audit(self, persona):
         return [
             dict(row)
             for row in self.conn.execute(
-                "SELECT r.status,r.created,r.expires,n.topic FROM receipts r LEFT JOIN candidates c ON r.candidate=c.id LEFT JOIN notes n ON c.note_id=n.id WHERE r.persona=? ORDER BY r.created DESC LIMIT 10",
+                "SELECT r.status,r.created,r.expires,coalesce(n.topic,json_extract(m.payload,'$.topic')) topic,"
+                "e.stage adoption FROM receipts r LEFT JOIN candidates c ON r.candidate=c.id "
+                "LEFT JOIN notes n ON c.note_id=n.id LEFT JOIN share_materials m ON m.candidate=c.id "
+                "LEFT JOIN share_executions e ON e.receipt=r.id WHERE r.persona=? ORDER BY r.created DESC LIMIT 10",
                 (persona,),
             )
         ]
@@ -469,11 +628,25 @@ class Store:
         ).fetchone()
         if row is None:
             raise StoreError("not_found")
-        if row["status"] == "sent":
-            return "sent"
+        if row["status"] in {"sent", "declined"}:
+            return row["status"]
         if status not in {"submitted", "unknown", "released", "sent"}:
             raise StoreError("invalid_status")
-        if status == "released" and (row["status"] != "leased" or row["host_task"]):
+        if (
+            status == "sent"
+            and self.conn.execute("SELECT 1 FROM share_offers WHERE receipt=?", (receipt,)).fetchone()
+        ):
+            raise StoreError(
+                "unattributed_delivery"
+            )  # New protocol confirms only through the Host execution Hook.
+        if status == "released" and (
+            row["status"] != "leased"
+            or row["host_task"]
+            or self.conn.execute(
+                "SELECT 1 FROM share_executions WHERE receipt=?",
+                (receipt,),
+            ).fetchone()
+        ):
             raise StoreError("already_submitted")
         if status in {"submitted", "sent"}:
             if (
@@ -489,15 +662,126 @@ class Store:
         if row["status"] == "released":
             raise StoreError("released")
         with self.conn:
+            if status == "submitted" and row["status"] in {"adopted", "unknown"}:
+                status = row["status"]  # A late host acceptance must not downgrade selection/uncertainty.
             self.conn.execute(
                 "UPDATE receipts SET status=?,host_task=? WHERE id=?",
                 (status, host_task or row["host_task"], receipt),
             )
         return status
 
+    def _share_status(self, persona, session, receipt):
+        row = self.conn.execute(
+            "SELECT status FROM receipts WHERE id=? AND persona=? AND session=?", (receipt, persona, session)
+        ).fetchone()
+        if row is None:
+            raise StoreError("not_found")
+        return row["status"]
+
+    def _share_skips(self, persona):
+        return [
+            json.loads(r[0])
+            for r in self.conn.execute(
+                "SELECT value FROM kv WHERE persona=? AND key LIKE 'share_skip:%' ORDER BY json_extract(value,'$.at') DESC LIMIT 8",
+                (persona,),
+            )
+        ]
+
+    def _adopt(self, persona, session, receipt, reply_id, call_id, expected=None):
+        if not all(isinstance(v, str) and 0 < len(v) <= 160 for v in (session, receipt, reply_id, call_id)):
+            raise StoreError("invalid_execution")
+        row = self.conn.execute(
+            "SELECT r.*,c.expires material_expires,n.topic,n.summary,n.opinion,n.sources,m.payload "
+            "FROM receipts r JOIN candidates c ON c.id=r.candidate LEFT JOIN notes n ON n.id=c.note_id "
+            "LEFT JOIN share_materials m ON m.candidate=c.id WHERE r.id=? AND r.persona=? AND r.session=?",
+            (receipt, persona, session),
+        ).fetchone()
+        if (
+            row is None
+            or row["status"] not in {"leased", "submitted", "adopted"}
+            or min(row["expires"], row["material_expires"]) <= self.clock()
+        ):
+            raise StoreError("expired_or_unavailable_material")
+        execution = self.conn.execute("SELECT * FROM share_executions WHERE receipt=?", (receipt,)).fetchone()
+        if execution and (execution["session"], execution["reply_id"], execution["call_id"]) != (
+            session,
+            reply_id,
+            call_id,
+        ):
+            raise StoreError("already_adopted")
+        if expected is not None and (
+            execution is None or type(expected) is not int or not 1 <= expected <= 64
+        ):
+            raise StoreError("execution_not_prepared")
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO share_executions VALUES (?,?,?,?,?,?) ON CONFLICT(receipt) DO NOTHING",
+                (receipt, session, reply_id, call_id, "adopted", None),
+            )
+            if expected is not None:
+                self.conn.execute(
+                    "UPDATE share_executions SET stage='sending',expected=? WHERE receipt=?",
+                    (expected, receipt),
+                )
+            self.conn.execute("UPDATE receipts SET status='adopted' WHERE id=?", (receipt,))
+        return self._share_payload(row)
+
+    def _share_delivery(self, persona, session, reply_id, call_id, results):
+        row = self.conn.execute(
+            "SELECT e.receipt,e.stage,e.expected FROM share_executions e JOIN receipts r ON r.id=e.receipt "
+            "WHERE r.persona=? AND e.session=? AND e.reply_id=? AND e.call_id=?",
+            (persona, session, reply_id, call_id),
+        ).fetchone()
+        if (
+            row is None
+            or row["stage"] not in {"sending", "unknown"}
+            or not isinstance(results, list)
+            or not results
+        ):
+            return
+        # Only a trusted Host send result can confirm transport. Partial/empty/error remains unknown.
+        confirmed = len(results) == row["expected"] and all(
+            isinstance(r, dict)
+            and type(r.get("index")) is int
+            and r["index"] == index
+            and r.get("success") is True
+            and isinstance(r.get("message_id"), str)
+            and r["message_id"]
+            for index, r in enumerate(results)
+        )
+        with self.conn:
+            self.conn.execute(
+                "UPDATE receipts SET status=? WHERE id=? AND status!='sent'",
+                ("sent" if confirmed else "unknown", row["receipt"]),
+            )
+            self.conn.execute(
+                "UPDATE share_executions SET stage=? WHERE receipt=?",
+                ("sent" if confirmed else "unknown", row["receipt"]),
+            )
+            self.conn.execute(
+                "UPDATE share_offers SET activity=? WHERE receipt=?", (self.clock(), row["receipt"])
+            )
+
+    def _decline_share(self, persona, session, receipt):
+        row = self.conn.execute(
+            "SELECT status FROM receipts WHERE id=? AND persona=? AND session=?", (receipt, persona, session)
+        ).fetchone()
+        if (
+            row is None
+            or row["status"] not in {"leased", "submitted"}
+            or self.conn.execute(
+                "SELECT 1 FROM share_executions WHERE receipt=?",
+                (receipt,),
+            ).fetchone()
+        ):
+            raise StoreError("not_releasable")
+        with self.conn:
+            self.conn.execute("UPDATE receipts SET status='declined' WHERE id=?", (receipt,))
+        return "declined"
+
     def _purge_notes(self, persona):
         if self.conn.execute(
-            "SELECT 1 FROM receipts WHERE persona=? AND status IN ('leased','submitted','unknown')",
+            "SELECT 1 FROM receipts WHERE persona=? AND status IN ('leased','submitted','adopted','unknown')",
             (persona,),
         ).fetchone():
             raise StoreError("delivery_attribution_still_pending")

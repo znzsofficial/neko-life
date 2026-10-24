@@ -3,7 +3,10 @@
 The implementation baseline is MaiBot 1.3.9 / SDK 2.12. The host resolves API
 visibility using the real caller ID but **does not pass that identity to the
 receiving API handler** (`capabilities/components.py::_cap_api_call`). A caller
-ID inside API arguments is therefore not trusted. No host changes are required.
+ID inside API arguments is therefore not trusted. No new host changes are required
+for the cross-plugin bridge. Life0.5 sharing uses the already provisioned
+`maisaka.reply.after_send` Hook alongside the native reply-extension protocol;
+unpatched upstream hosts must not bypass component registration checks.
 
 Cross-plugin operations use a single bounded JSON packet, authenticated by a
 separate per-client HMAC-SHA256 capability key. The signed bytes bind protocol
@@ -38,7 +41,30 @@ Preservation baseline: no changes to persona, ordinary chat history, TTS voice
 instruction/15% selection, draw memory-first self portraits, inactive plugins,
 CPA credentials, proxy selection, or existing proactive targeting/probability.
 
-## Optional scene drawing (Life0.4 / Draw1.3)
+## Sharing candidate protocol2 (Life0.5 / Proactive2.2)
+
+The signed `sharing_v1` API retains its envelope. `claim` returns protocol2,
+receipt_id, kind, bounded summary/opinion/sources and fictional provenance.
+`status` accepts only session_id and receipt_id and returns persisted state;
+it never sends or retries. Host rejection before execution may release a lease.
+An explicit `neko_life_skip_share` may decline only a still-unselected receipt.
+
+The `neko.life.share` reply extension takes receipt_id but derives authorization,
+persona, actual session/reply/call identifiers and source material from trusted
+Host context plus the signed lease. It injects bounded generation requirements,
+does not transform messages, and records expected segment count before send.
+The correlated Host Hook confirms only complete, indexed, successful delivery
+results with real message IDs. Neither a model-provided ID nor a normal QQ reply
+anchor is delivery proof. Partial/error/missing results remain unknown; late
+exact acknowledgements can settle idempotently. Adoption is not a semantic
+guarantee that a model followed the material, nor proof of client display.
+
+Unknown blocks that candidate, counts conservatively toward daily and backlog
+limits, and is never replayed. New material can use remaining slots after the
+independent Life cooldown. Sharing defaults are2/day,180minutes and8 unresolved
+per session; original proactive scheduling/authorization is unchanged.
+
+## Optional scene drawing details
 
 `neko.draw.life_v1@1` is public but capability-authenticated, default disabled.
 Its dedicated HMAC key is separate from Web and Sharing. The same packet schema

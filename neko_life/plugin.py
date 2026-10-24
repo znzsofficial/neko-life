@@ -10,7 +10,7 @@ import time
 import uuid
 from zoneinfo import ZoneInfo
 
-from maibot_sdk import API, Command, HookHandler, MaiBotPlugin, Tool
+from maibot_sdk import API, Command, HookHandler, MaiBotPlugin, Tool, ReplyExtension
 from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder
 
 from .bridge import WebBridge, client_key
@@ -25,6 +25,7 @@ from .sharing import authenticate
 from .drawing import draw_scene
 from .authorization import authorize, targets, explanation
 from .focus import items_for_scope, planner_scopes
+from .materials import scene_materials, reply_prompt
 
 
 class NekoLifePlugin(MaiBotPlugin):
@@ -78,7 +79,12 @@ class NekoLifePlugin(MaiBotPlugin):
         limits = self.config.budget.model_dump()
         limits["round"] = limits.pop("rounds")
         self.store = Store(
-            self.ctx.paths.data_dir, limits=limits, interval_seconds=self.config.explore.interval_minutes * 60
+            self.ctx.paths.data_dir,
+            limits=limits,
+            interval_seconds=self.config.explore.interval_minutes * 60,
+            sharing={
+                k: getattr(self.config.sharing, k) for k in ("daily_max", "interval_minutes", "unknown_max")
+            },
         )
         try:
             await self.store.call("open")
@@ -124,6 +130,14 @@ class NekoLifePlugin(MaiBotPlugin):
         async with self.lifecycle:
             if scope == "self" and self.runtime_settings == self._runtime_settings():
                 self.authorization_status.clear()
+                if self.store:
+                    await self.store.call(
+                        "sharing_policy",
+                        {
+                            k: getattr(self.config.sharing, k)
+                            for k in ("daily_max", "interval_minutes", "unknown_max")
+                        },
+                    )
                 return
             await self._close()
             await self._open()
@@ -137,14 +151,20 @@ class NekoLifePlugin(MaiBotPlugin):
                 self.snapshot = await self.schedule.tick(now)
                 await self.memories.tick(now, self.snapshot)
                 self.snapshot["fragments"] = [
-                    value
-                    for value in [
-                        await self.store.call("get", self.persona, kind + ":" + now.date().isoformat())
+                    {**value, "kind": kind}
+                    for kind, value in [
+                        (
+                            kind,
+                            await self.store.call("get", self.persona, kind + ":" + now.date().isoformat()),
+                        )
                         for kind in ("dream", "diary")
                     ]
                     if value and value.get("status") == "generated"
                 ]
                 self.notes = await self.store.call("notes", self.persona, 5)
+                await self.store.call(
+                    "materials", self.persona, scene_materials(self.snapshot, now.timestamp())
+                )
                 await self.store.call("cleanup")
                 if not paused and self.config.explore.enabled and self.config.models.enabled:
                     start, end, value = (
@@ -291,6 +311,83 @@ class NekoLifePlugin(MaiBotPlugin):
                 "modified_kwargs": {**kwargs, "items": inject(kwargs["items"], text)},
             }
         return {"action": "continue"}
+
+    @ReplyExtension(
+        "share",
+        description="采用本次Life候选自然分享；receipt_id填主动任务提供的编号。",
+        parameters={
+            "type": "object",
+            "properties": {"receipt_id": {"type": "string"}},
+            "required": ["receipt_id"],
+            "additionalProperties": False,
+        },
+        priority=100,
+        timeout_ms=5000,
+    )
+    async def share_reply(
+        self, phase="", parameters=None, session_id="", reply_id="", call_id="", messages=None, **kwargs
+    ):
+        del kwargs
+        async with self.lifecycle:
+            if not self.store or not self.persona or not await self._authorized("sharing", session_id):
+                raise ValueError("life_share_not_authorized")
+            policy = targets(self.config.sharing)
+            if await self.store.call("get", self.persona, "paused", False):
+                raise ValueError("life_paused")
+            receipt = (parameters or {}).get("receipt_id")
+            if not isinstance(receipt, str) or not re.fullmatch("[a-f0-9]{32}", receipt):
+                raise ValueError("invalid_life_receipt")
+            if not self._policy_current("sharing", policy):
+                raise ValueError("life_share_revoked")
+            if phase not in {"prepare", "before_send"}:
+                raise ValueError("unknown_reply_phase")
+            expected = None
+            if phase == "before_send":
+                if not isinstance(messages, list) or not messages or len(messages) > 64:
+                    raise ValueError("invalid_share_messages")
+                expected = len(messages)
+            material = await self.store.call(
+                "adopt", self.persona, session_id, receipt, reply_id, call_id, expected
+            )
+            if not self._policy_current("sharing", policy):
+                raise ValueError("life_share_revoked")
+            return {"extra_prompt": reply_prompt(material)} if phase == "prepare" else {}
+
+    @HookHandler(
+        "maisaka.reply.after_send",
+        name="neko_life_share_delivery",
+        mode=HookMode.BLOCKING,
+        order=HookOrder.LATE,
+        error_policy=ErrorPolicy.SKIP,
+        timeout_ms=5000,
+    )
+    async def share_delivery(self, session_id="", reply_id="", call_id="", send_results=None, **kwargs):
+        del kwargs
+        # Settlement of an existing execution is allowed after pause/revocation.
+        async with self.lifecycle:
+            if (
+                self.store
+                and self.persona
+                and all(isinstance(v, str) and v for v in (session_id, reply_id, call_id))
+            ):
+                await self.store.call(
+                    "share_delivery", self.persona, session_id, reply_id, call_id, send_results
+                )
+
+    @Tool("neko_life_skip_share", description="明确不采用本次Life候选，释放机会；不发送任何消息。")
+    async def skip_share(self, receipt_id: str, **kwargs):
+        session = kwargs.get("session_id") or kwargs.get("stream_id") or ""
+        async with self.lifecycle:
+            if not self.store or not self.persona or not await self._authorized("sharing", session):
+                return {"success": False, "status": "not_authorized"}
+            policy = targets(self.config.sharing)
+            if not self._policy_current("sharing", policy):
+                return {"success": False, "status": "not_authorized"}
+            try:
+                status = await self.store.call("decline_share", self.persona, session, receipt_id)
+                return {"success": True, "status": status}
+            except ValueError:
+                return {"success": False, "status": "not_releasable"}
 
     @Tool("neko_life_recent", description="查看近期公开见闻和来源，仅限已允许的聊天。")
     async def recent(self, **kwargs):
@@ -514,6 +611,21 @@ class NekoLifePlugin(MaiBotPlugin):
         def hhmm(value):
             return f"{value // 60:02d}:{value % 60:02d}"
 
+        def job_reason(job):
+            detail = json.loads(job["detail"])
+            reason = str(detail.get("reason", ""))
+            phase = {
+                "choose": "选题模型",
+                "search": "搜索",
+                "read": "正文读取",
+                "summarize": "整理笔记模型",
+            }.get(detail.get("phase"), "探索")
+            if reason == "TimeoutError":
+                return phase + "超时"
+            if reason == "rotate_topic":
+                return "已连续研究相同支线，本轮未能换线，未继续搜索"
+            return phase + "：" + reason if reason else ""
+
         skip = (
             await self.store.call("get", self.persona, "last_skip", "无")
             if self.store and self.persona
@@ -544,6 +656,16 @@ class NekoLifePlugin(MaiBotPlugin):
             "submitted": "任务已提交（未确认送达）",
             "sent": "已收到精确成功回执",
             "released": "发送前已释放",
+            "adopted": "已选择素材（尚未确认发送）",
+            "declined": "Planner明确不采用（机会已释放）",
+            "sending": "已选择素材并进入发送阶段",
+            "share_cooldown": "Life分享冷却中",
+            "unknown_backlog": "未知投递积压，暂停新分享；不自动补发",
+            "daily_share_limit": "已达到今日分享上限（含未知）",
+            "attempt_limit": "今日候选尝试次数已达到保护上限",
+            "in_flight": "已有候选在途",
+            "no_fresh_material": "当前无新鲜且未分享的素材",
+            "offered": "已提供候选，等待选择",
         }
         quota_names = {
             "rounds": "探索轮次",
@@ -577,6 +699,7 @@ class NekoLifePlugin(MaiBotPlugin):
                     "at": at(row["created"]),
                     "status": labels.get(row["status"], row["status"]),
                     "topic": row["topic"] or "原笔记已过期或清理",
+                    "adoption": labels.get(row["adoption"], row["adoption"] or "未取得明确选择证据"),
                 }
                 for row in result["sharing_receipts"]
             ],
@@ -600,7 +723,7 @@ class NekoLifePlugin(MaiBotPlugin):
                     "origin": {"manual": "管理员请求", "autonomous": "自主选题"}.get(
                         json.loads(j["detail"]).get("origin"), "未记录"
                     ),
-                    "reason": str(json.loads(j["detail"]).get("reason", "")),
+                    "reason": job_reason(j),
                 }
                 for j in jobs
             ],
@@ -634,6 +757,11 @@ class NekoLifePlugin(MaiBotPlugin):
         result["query_text"] = (
             "\n\n".join(at(j["created"]) + " · " + j["query"] for j in jobs[:5] if j["query"])
             or "尚无实际查询。"
+        )
+        skips = await self.store.call("share_skips", self.persona) if self.store and self.persona else []
+        result["sharing_skip_label"] = (
+            "；".join(at(s["at"]) + " " + labels.get(s["reason"], s["reason"]) for s in skips)
+            or "尚无分享检查记录"
         )
         return result
 
@@ -699,7 +827,7 @@ class NekoLifePlugin(MaiBotPlugin):
                     "set", self.persona, "last_error", {"status": self.error, "at": time.time()}
                 )
 
-    @API(name="sharing_v1", description="签名授权的公开见闻候选与结算", version="1", public=True)
+    @API(name="sharing_v1", description="签名授权的生活/见闻候选与结算", version="1", public=True)
     async def sharing_api(self, packet=None, **kwargs):
         del kwargs
         if (
@@ -734,6 +862,13 @@ class NekoLifePlugin(MaiBotPlugin):
                     "receipt", self.persona, session, body["receipt_id"], body["status"], body["host_task"]
                 )
                 return {"success": True, "status": status}
+            if operation == "status" and set(body) == {"session_id", "receipt_id"}:
+                return {
+                    "success": True,
+                    "status": await self.store.call(
+                        "share_status", self.persona, session, body["receipt_id"]
+                    ),
+                }
             return {"success": False, "status": "invalid_request"}
         except Exception:
             return {"success": False, "status": "unavailable_or_unauthorized"}

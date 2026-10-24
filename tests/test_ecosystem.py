@@ -262,6 +262,7 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
                             "response": json.dumps(
                                 {
                                     "worth_saving": True,
+                                    "shareable": True,
                                     "summary": "公开发现尚需验证。",
                                     "opinion": "值得关注",
                                     "source_indexes": [0],
@@ -325,6 +326,29 @@ class EcosystemTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(bot._life._read()[receipt]["status"], "submitted")
             await bot.life_after_send(message={"session_id": "chat"}, reply_message_id=task, sent=True)
+            self.assertEqual(bot._life._read()[receipt]["status"], "submitted")
+            await life.share_reply(
+                phase="prepare",
+                parameters={"receipt_id": receipt},
+                session_id="chat",
+                reply_id="r",
+                call_id="c",
+            )
+            await life.share_reply(
+                phase="before_send",
+                parameters={"receipt_id": receipt},
+                session_id="chat",
+                reply_id="r",
+                call_id="c",
+                messages=[{"segments": [{"type": "text", "data": "合成分享"}], "quote_previous": False}],
+            )
+            await life.share_delivery(
+                session_id="chat",
+                reply_id="r",
+                call_id="c",
+                send_results=[{"index": 0, "success": True, "message_id": "qq-id"}],
+            )
+            await bot._life.flush()
             self.assertEqual(bot._life._read()[receipt]["status"], "sent")
             self.assertIsNone(await life.store.call("claim", life.persona, "chat"))
             life.config.sharing.user_ids.clear()

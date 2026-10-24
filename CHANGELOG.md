@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — Life material sharing and correlated delivery
+
+- 具体角色场景、晨间梦境、晚间感想与公开见闻统一候选，时效/场景/近似内容去重，不另起定时器或每轮新增模型判断。
+- `neko.life.share`回复扩展将受信任会话/reply/call绑定素材，现有精确Hook逐段确认；部分发送与未知不重发。新增明确不采用工具，状态页分开选择与传输。
+- 每会话分享上限默认2次/日、180分钟冷却；未知积压8条停止新候选，历史unknown保留。旧schema1仅新增表，不重置原数据或预算。
+- 探索跟踪问题支线，连续深入后要求换线；区分值得保存和适合群聊开场，错误显示阶段。
+- 需要主动插件2.2及已配套的宿主精确Hook，不增加宿主补丁，不改变原人设/模型/主动白名单/概率或配图与TTS策略。测试为离线合成，不声称群里已分享。
+
 ## 0.4.3 — QQ targets with independent permissions
 
 - 聊天背景、主动分享、自主配图各增`group_ids`与`user_ids`，中文Schema提示清晰；旧`sessions`高级兼容授权不变。

@@ -15,6 +15,7 @@
       {"type": "text", "label": "最近错误（未发生则无）", "value": {"source": "status", "field": "error_label"}},
       {"type": "text", "label": "聊天授权核验（仅最近请求，不是全量预检）", "value": {"source": "status", "field": "authorization_label"}},
       {"type": "text", "label": "最近跳过原因", "value": {"source": "status", "field": "skip_label"}},
+      {"type": "text", "label": "Life分享检查（各会话最近结果）", "value": {"source": "status", "field": "sharing_skip_label"}},
       {"type": "text", "label": "最近尝试", "value": {"source": "status", "field": "attempt_label"}},
       {"type": "text", "label": "最近保存笔记", "value": {"source": "status", "field": "success_label"}},
       {"type": "text", "label": "下轮探索资格", "value": {"source": "status", "field": "next_label"}},
@@ -26,12 +27,12 @@
       ]},
       {"type": "table", "label": "最近探索（含未探索和失败）", "value": {"source": "status", "field": "job_rows"}, "columns": [
         {"field": "at", "label": "时间"}, {"field": "status", "label": "状态"},
-        {"field": "origin", "label": "发起方式"}
+        {"field": "origin", "label": "发起方式"}, {"field": "reason", "label": "跳过或失败原因"}
       ]},
       {"type": "text", "label": "最近实际查询", "value": {"source": "status", "field": "query_text"}},
       {"type": "text", "label": "公开见闻与来源", "value": {"source": "status", "field": "notes_text"}},
       {"type": "table", "label": "主动分享回执（提交不等于送达）", "value": {"source": "status", "field": "receipt_rows"}, "columns": [
-        {"field": "at", "label": "提交时间"}, {"field": "status", "label": "确认状态"}, {"field": "topic", "label": "主题"}
+        {"field": "at", "label": "提交时间"}, {"field": "adoption", "label": "素材选择"}, {"field": "status", "label": "传输状态"}, {"field": "topic", "label": "主题"}
       ]},
       {"type": "table", "label": "今日用量（预留含未知，非精确金额）", "value": {"source": "status", "field": "usage_rows"}, "columns": [
         {"field": "kind", "label": "类型"}, {"field": "calls", "label": "次数"},

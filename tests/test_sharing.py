@@ -53,11 +53,21 @@ class SharingTests(unittest.IsolatedAsyncioTestCase):
         receipt = candidate["receipt_id"]
         task = "proactive:neko.proactive:1700000000000"
         await self.store.call("receipt", "p", "chat", receipt, "submitted", task)
+        await self.store.call("adopt", "p", "chat", receipt, "reply", "call")
+        await self.store.call("adopt", "p", "chat", receipt, "reply", "call", 1)
         self.now[0] += 181
         await self.store.call("cleanup")
         audit = await self.store.call("share_audit", "p")
         self.assertEqual(audit[0]["status"], "unknown")
         self.assertIsNone(await self.store.call("claim", "p", "chat"))
+        await self.store.call(
+            "share_delivery",
+            "p",
+            "chat",
+            "reply",
+            "call",
+            [{"index": 0, "success": True, "message_id": "qq-real"}],
+        )
         self.assertEqual(await self.store.call("receipt", "p", "chat", receipt, "sent", task), "sent")
         self.assertEqual(await self.store.call("receipt", "p", "chat", receipt, "sent", task), "sent")
 

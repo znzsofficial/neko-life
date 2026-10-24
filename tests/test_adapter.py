@@ -68,7 +68,10 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
 
         components = collect_components(self.bot)
         tools = [x for x in components if x["type"] == "TOOL"]
-        self.assertEqual({tool["name"] for tool in tools}, {"neko_life_recent", "neko_life_draw_scene"})
+        self.assertEqual(
+            {tool["name"] for tool in tools},
+            {"neko_life_recent", "neko_life_draw_scene", "neko_life_skip_share"},
+        )
         self.assertTrue(all(len(tool["metadata"]["description"]) <= 45 for tool in tools))
         status = next(x for x in components if x["name"] == "status_v1")
         self.assertFalse(status["metadata"]["public"])
@@ -221,6 +224,8 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         claimed = await self.bot.sharing_api(packet=signed("claim", {"session_id": "chat"}))
         receipt = claimed["candidate"]["receipt_id"]
+        await self.bot.store.call("adopt", self.bot.persona, "chat", receipt, "reply", "call")
+        await self.bot.store.call("adopt", self.bot.persona, "chat", receipt, "reply", "call", 1)
         await self.bot.store.call("set", self.bot.persona, "paused", True)
         self.assertEqual(
             (await self.bot.sharing_api(packet=signed("claim", {"session_id": "chat"})))["status"], "paused"
@@ -232,5 +237,11 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             "host_task": "proactive:neko.proactive:1700000000000",
         }
         self.assertTrue((await self.bot.sharing_api(packet=signed("receipt", body)))["success"])
+        await self.bot.share_delivery(
+            session_id="chat",
+            reply_id="reply",
+            call_id="call",
+            send_results=[{"index": 0, "success": True, "message_id": "qq-real"}],
+        )
         body["status"] = "sent"
         self.assertEqual((await self.bot.sharing_api(packet=signed("receipt", body)))["status"], "sent")

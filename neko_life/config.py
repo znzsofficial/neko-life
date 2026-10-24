@@ -182,6 +182,27 @@ class SharingSettings(ChatTargets):
         description="把公开见闻交给原主动聊天插件选用；还需对方开启Life联动，未必每次都发。",
         json_schema_extra=ui("允许主动分享见闻"),
     )
+    daily_max: int = Field(
+        default=2,
+        ge=1,
+        le=8,
+        description="每个会话每天最多分享几次；未知投递也占一次，不是每日任务。",
+        json_schema_extra=ui("每日分享上限"),
+    )
+    interval_minutes: int = Field(
+        default=180,
+        ge=30,
+        le=1440,
+        description="Life分享之间的最短间隔，不改变主动插件检查频率。",
+        json_schema_extra=ui("分享间隔（分钟）"),
+    )
+    unknown_max: int = Field(
+        default=8,
+        ge=1,
+        le=32,
+        description="每个会话最多保留多少条未知占位；达到后暂停新分享，不重发。旧记录也计入。",
+        json_schema_extra=ui("未知积压上限"),
+    )
     sessions: list[str] = Field(
         default_factory=list,
         description="高级兼容：已有宿主会话ID，与上面的号码取并集。三项都空不分享；还须通过原主动插件目标、时段、概率和冷却检查。",
