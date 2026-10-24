@@ -99,9 +99,9 @@ jobs:
       - name: Run tests
         run: python scripts/test_suite.py
       - name: Lint
-        run: |
-          python -m ruff check .
-          python -m ruff format --check .
+        run: python -m ruff check .
+      - name: Format
+        run: python -m ruff format --check .
       - name: Verify source package
         run: python scripts/build_release.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
