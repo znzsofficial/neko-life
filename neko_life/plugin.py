@@ -718,7 +718,12 @@ class NekoLifePlugin(MaiBotPlugin):
             receipt_rows=[
                 {
                     "at": at(row["created"]),
-                    "status": labels.get(row["status"], row["status"]),
+                    "status": labels.get(row["status"], row["status"])
+                    + (
+                        "（历史积压已知悉，送达仍未知）"
+                        if row["status"] == "unknown" and row["reviewed"]
+                        else ""
+                    ),
                     "topic": row["topic"] or "原笔记已过期或清理",
                     "adoption": labels.get(row["adoption"], row["adoption"] or "未取得明确选择证据"),
                 }

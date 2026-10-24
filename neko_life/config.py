@@ -200,7 +200,7 @@ class SharingSettings(ChatTargets):
         default=8,
         ge=1,
         le=32,
-        description="每个会话最多保留多少条未知占位；达到后暂停新分享，不重发。旧记录也计入。",
+        description="每个会话未知占位上限；达到后暂停新分享，不重发。未人工知悉的历史也计入；知悉不代表送达或返还日额度。",
         json_schema_extra=ui("未知积压上限"),
     )
     sessions: list[str] = Field(

@@ -97,6 +97,7 @@ class Store:
           CREATE TABLE IF NOT EXISTS share_materials(candidate TEXT PRIMARY KEY, kind TEXT,
             source_key TEXT, payload TEXT, fingerprint TEXT);
           CREATE TABLE IF NOT EXISTS share_offers(receipt TEXT PRIMARY KEY, protocol INTEGER, activity REAL);
+          CREATE TABLE IF NOT EXISTS share_reviews(receipt TEXT PRIMARY KEY, reviewed REAL, note TEXT);
           CREATE TABLE IF NOT EXISTS share_executions(receipt TEXT PRIMARY KEY, session TEXT,
             reply_id TEXT, call_id TEXT, stage TEXT, expected INTEGER, UNIQUE(session,reply_id,call_id));
           CREATE TABLE IF NOT EXISTS note_context(note TEXT PRIMARY KEY, family TEXT, shareable INTEGER);
@@ -485,6 +486,7 @@ class Store:
             for table, column, owner in (
                 ("share_materials", "candidate", "candidates"),
                 ("share_offers", "receipt", "receipts"),
+                ("share_reviews", "receipt", "receipts"),
                 ("share_executions", "receipt", "receipts"),
                 ("note_context", "note", "notes"),
                 ("question_roots", "question", "questions"),
@@ -586,14 +588,15 @@ class Store:
     def _share_gate(self, session):
         now = self.clock()
         rows = self.conn.execute(
-            "SELECT r.status,r.day,r.created,r.expires,coalesce(o.activity,r.created) activity "
-            "FROM receipts r LEFT JOIN share_offers o ON o.receipt=r.id WHERE r.session=?",
+            "SELECT r.status,r.day,r.created,r.expires,coalesce(o.activity,r.created) activity,v.reviewed "
+            "FROM receipts r LEFT JOIN share_offers o ON o.receipt=r.id "
+            "LEFT JOIN share_reviews v ON v.receipt=r.id WHERE r.session=?",
             (session,),
         ).fetchall()
         uncertain = [
             r
             for r in rows
-            if r["status"] == "unknown"
+            if (r["status"] == "unknown" and r["reviewed"] is None)
             or (r["status"] in {"leased", "submitted", "adopted"} and r["expires"] <= now)
         ]
         if len(uncertain) >= self.sharing["unknown_max"]:
@@ -615,9 +618,10 @@ class Store:
             dict(row)
             for row in self.conn.execute(
                 "SELECT r.status,r.created,r.expires,coalesce(n.topic,json_extract(m.payload,'$.topic')) topic,"
-                "e.stage adoption FROM receipts r LEFT JOIN candidates c ON r.candidate=c.id "
+                "e.stage adoption,v.reviewed FROM receipts r LEFT JOIN candidates c ON r.candidate=c.id "
                 "LEFT JOIN notes n ON c.note_id=n.id LEFT JOIN share_materials m ON m.candidate=c.id "
-                "LEFT JOIN share_executions e ON e.receipt=r.id WHERE r.persona=? ORDER BY r.created DESC LIMIT 10",
+                "LEFT JOIN share_executions e ON e.receipt=r.id LEFT JOIN share_reviews v ON v.receipt=r.id "
+                "WHERE r.persona=? ORDER BY r.created DESC LIMIT 10",
                 (persona,),
             )
         ]

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2 — Auditable historical-unknown acknowledgement
+
+- 增量`share_reviews`只记录经管理员明确授权知悉的历史未知；仅免除其新积压阻塞，不改unknown/今日额度/冷却/去重，不重放。
+- 不自动确认历史，不提供模型可调用的确认接口；未确认历史及新版未知仍计上限，工作区明确标注仍未知。
+
 ## 0.5.1 — Declare skip-tool parameters explicitly
 
 - `neko_life_skip_share`显式声明必填receipt_id；SDK不会从Python签名推断工具参数。缺失/畸形参数返回有界错误，不再抛TypeError或提示重试。

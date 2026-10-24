@@ -198,6 +198,29 @@ class SharingFlowTests(unittest.IsolatedAsyncioTestCase):
         await self.store.call("open")
         self.assertEqual(await self.store.call("share_status", "old", "chat", "legacy"), "unknown")
 
+    async def test_explicit_history_review_only_exempts_backlog_not_daily_count_cooldown_or_dedupe(self):
+        receipt = await self.offer()
+        await self.store.call("receipt", "p", "chat", receipt, "unknown")
+        policy = {"daily_max": 1, "interval_minutes": 180, "unknown_max": 1}
+        await self.store.call("sharing_policy", policy)
+        self.assertEqual(await self.store.call("share_gate", "chat"), "unknown_backlog")
+        with sqlite3.connect(self.store.path) as db:
+            db.execute(
+                "INSERT INTO share_reviews VALUES (?,?,?)",
+                (receipt, self.now[0], "explicit operator approval; not delivery"),
+            )
+        db.close()
+        self.assertEqual(await self.store.call("share_gate", "chat"), "daily_share_limit")
+        await self.store.call("sharing_policy", {**policy, "daily_max": 2})
+        self.assertEqual(await self.store.call("share_gate", "chat"), "share_cooldown")
+        self.now[0] += 3 * 3600 + 1
+        self.assertIsNone(await self.store.call("claim", "p", "chat"))
+        self.assertEqual(await self.store.call("share_status", "p", "chat", receipt), "unknown")
+        await self.note(2)
+        new = (await self.store.call("claim", "p", "chat"))["receipt_id"]
+        await self.store.call("receipt", "p", "chat", new, "unknown")
+        self.assertEqual(await self.store.call("share_gate", "chat"), "unknown_backlog")
+
     async def test_two_related_notes_force_fresh_branch_without_extra_model_or_search(self):
         for i in range(2):
             self.now[0] += 1
